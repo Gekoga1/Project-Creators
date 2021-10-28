@@ -1,17 +1,7 @@
-import socket
-import threading
-
 from server_lib import *
 # custom lib with some functions and another libs
 
-HEADER = 64
-PORT = 5050
-SERVER = '192.168.2.2'
-ADDR = (SERVER, PORT)
-FORMAT = 'utf-8'
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind(ADDR)
+from game_lib import *
 
 
 def handle_client(conn, addr):
@@ -19,23 +9,38 @@ def handle_client(conn, addr):
 
     connected = True
     while connected:
-        msg_length = conn.recv(HEADER).decode(FORMAT)
-        if msg_length:
-            msg_length = int(msg_length)
-            msg = conn.recv(msg_length).decode(FORMAT)
+        msg = receive(conn, addr)
+        if msg == "!DISCONNECT":
+            connected = False
 
-            reception_response(conn, addr, msg)
+        elif msg == "!REGISTRATION":
+            registration(conn, addr)
 
-            if msg == "!DISCONNECT":
-                connected = False
+        elif msg == "!LOGIN":
+            login(conn, addr)
 
-            elif msg == "!REGISTRATION":
-                registration(conn, addr)
+        elif msg == "!CREATE_ROOM":
+            room_addr = create_room(conn, addr)
+            break
 
-            elif msg == "!LOGIN":
-                login(conn, addr)
+        elif msg == "!CONNECT_ROOM":
+            room_addr = connect_room(conn, addr)
+            if room_addr is not None:
+                thread = threading.Thread(target=handle_room, args=(room_addr,))
+                thread.start()
+                break
 
-    conn.close()
+    if not connected:
+        conn.close()
+
+
+def handle_room(number):
+    print(f"[ROOM {number}] ready.")
+
+    send_room('Duel starts', rooms[number])
+
+    game = Game([a], [b], rooms[number])
+    game.start()
 
 
 def start():
@@ -45,7 +50,6 @@ def start():
         conn, addr = server.accept()
         thread = threading.Thread(target=handle_client, args=(conn, addr))
         thread.start()
-        print(f"[ACTIVE CONNECTIONS] {threading.activeCount() - 1}")
 
 
 if __name__ == '__main__':
