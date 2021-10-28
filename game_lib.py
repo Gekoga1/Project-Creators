@@ -54,6 +54,14 @@ class Character:
                 self.pyro, self.aqua, self.geo, self.aero,
                 self.initiation]
 
+    def get_info(self):
+        return f'hp: {self.hp}/{self.max_hp}\n' \
+               f'mp: {self.mp}/{self.max_mp}\n' \
+               f'defence: {self.defence} | spell defence: {self.spell_defence}\n' \
+               f'stats: str={self.strength} | agl={self.agility} | int={self.intellect} | ' \
+               f'initiation={self.initiation}\n' \
+               f'states: {" ".join(map(str, self.state))}'
+
     def hp_check(self) -> None:
         self.hp = clamp(self.hp, self.max_hp, 0)
         if self.hp == 0:
@@ -74,6 +82,11 @@ class Character:
             self.lose_mp(lost)
             return True
 
+    def get_mp(self, amount):
+        amount = round(amount, 2)
+        self.mp += amount
+        self.mp_check()
+
     def get_damage(self, damage: float, sender, type_of='true') -> bool:
         if self.alive:
             if type_of == 'true':
@@ -84,9 +97,10 @@ class Character:
             elif type_of == 'physical':
                 if self.defence > damage:
                     print(f'{self} получает {damage} физического урона от {str(sender)} и теряет {damage} брони')
+                    self.defence -= damage
                     return False
                 elif self.defence == damage:
-                    self.defence -= damage
+                    self.defence = 0
                     print(f'{self} получает {damage} физического урона от {str(sender)} и теряет ВСЮ БРОНЮ')
                     return False
                 elif self.defence == 0:
@@ -110,6 +124,7 @@ class Character:
                 if self.spell_defence > damage:
                     print(f'{self} получает {damage} особого урона от {str(sender)} '
                           f'и теряет {damage} магической защиты')
+                    self.spell_defence -= damage
                     return False
                 elif self.spell_defence == damage:
                     self.spell_defence = 0
@@ -186,15 +201,17 @@ class Character:
 
     def make_action(self, match):
         if self.alive:
-            action = input('Actions: attack/ability\n').lower()
+            action = input('Actions: attack/ability/info\n').lower()
             if action == 'attack':
                 print(' '.join([f'{j + 1}: {i.name}' for j, i in enumerate(match.geo_team)]))
-                print(' '.join([f'{j + 4}: {i.name}' for j, i in enumerate(match.aero_team)]))
-                choose = int(input()) - 1
-
+                print(' '.join([f'{j + match.geo_len + 1}: {i.name}' for j, i in enumerate(match.aero_team)]))
                 try:
+                    choose = int(input('choose target ')) - 1
                     self.attack(match.characters[choose])
                 except IndexError:
+                    print('Error action')
+                    self.make_action(match)
+                except ValueError:
                     print('Error action')
                     self.make_action(match)
 
@@ -202,13 +219,31 @@ class Character:
                 if len(self.abilities) > 0:
                     for j, i in enumerate(self.abilities):
                         print(f'{j + 1}: {i.full_str()}')
-                    choose = int(input()) - 1
                     try:
-                        self.abilities[choose].usage(self, match)
+                        choose = int(input()) - 1
+
+                        if not self.abilities[choose].usage(self, match):
+                            print("You can't do that")
+                            self.make_action(match)
                     except IndexError:
                         print('Error action')
                         self.make_action(match)
-
+                    except ValueError:
+                        print('Error action')
+                        self.make_action(match)
+            elif action == 'info':
+                print(' '.join([f'{j + 1}: {i.name}' for j, i in enumerate(match.geo_team)]))
+                print(' '.join([f'{j + match.geo_len + 1}: {i.name}' for j, i in enumerate(match.aero_team)]))
+                try:
+                    choose = int(input('choose target ')) - 1
+                    print(match.characters[choose].get_info())
+                    self.make_action(match)
+                except IndexError:
+                    print('Error action')
+                    self.make_action(match)
+                except ValueError:
+                    print('Error action')
+                    self.make_action(match)
             else:
                 print('Error action')
                 self.make_action(match)
@@ -305,14 +340,19 @@ class Ability:
         return 'способность'
 
     def choose(self, match):
-        book = []
-        print(' '.join([f'{j + 1}: {i.name}'
-                        for j, i in enumerate(match.geo_team)]))
-        print(' '.join([f'{j + 4}: {i.name}'
-                        for j, i in enumerate(match.aero_team)]))
-        for _ in range(self.number_of_choose):
-            book.append(int(input()) - 1)
-        return map(lambda x: match.characters[x], book)
+        try:
+            book = []
+            print(' '.join([f'{j + 1}: {i.name}'
+                            for j, i in enumerate(match.geo_team)]))
+            print(' '.join([f'{j + match.geo_len + 1}: {i.name}'
+                            for j, i in enumerate(match.aero_team)]))
+            for i in range(self.number_of_choose):
+                book.append(int(input(f'target №{i} - ')) - 1)
+            return map(lambda x: match.characters[x], book)
+        except IndexError:
+            print('Wrong Index')
+        except ValueError:
+            print('Input Only integer numbers')
 
     def usage(self, user, match):
         pass
@@ -339,6 +379,30 @@ class PoisonTouch(Ability):
                     i.apply_effect((Poisoned, 2, 3, 1, 2))
 
             self.now_cd = self.cd
+
+            return True
+        else:
+            return False
+
+
+class Purify(Ability):
+    def __init__(self, mp_use: float, cd: int, number_of_choose: int):
+        super().__init__(mp_use, cd, number_of_choose)
+
+    def __str__(self):
+        return 'Очищение'
+
+    def full_str(self):
+        return f'Очищение (стоимость: {self.mp_use} mp, ' \
+               f'cd: {self.now_cd}, на себя)'
+
+    def usage(self, user: Character, match):
+        if self.now_cd == 0 and user.use_mp(self.mp_use):
+            print(f'{user} очстился от {", ".join(map(str, user.state))}')
+            user.state = []
+            self.now_cd = self.cd
+
+            return True
         else:
             return False
 
@@ -388,6 +452,7 @@ class Game:
         while self.check_teams_alive():
             for character in self.characters:
                 character.cd_down(1)
+                character.get_mp(character.intellect)
             self.round_start()
             for character in sorted(self.characters, key=lambda x: x.initiation, reverse=True):
                 print(f'{character} совершает действие')
@@ -395,13 +460,18 @@ class Game:
             self.round_end()
 
 
-a = Character('Anthem', 100, 100, 0, 0, [2, 2, 2, 3, 2, 2, 3, 2],
-              [Weapon('Sword', 'common', 2),
-               Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)], [])
-a2 = Character('Mehtna', 100, 100, 0, 0, [2, 2, 2, 3, 2, 2, 3, 2],
-               [Weapon('Sword', 'common', 2),
-                Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)], [])
-a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
+a = Character('Anthem', 120, 120, 0, 0, [7, 5, 2, 0, 0, 0, 0, 4],
+              [Weapon('Sword with troll', 'legendary', 10000000 ** 0, type_of='melee'),
+               Armor('ANTI MAGICK VEIL', 'epic', [5, 2, 1, 0, 0, 0, 0, 1], 5, 20)],
+              [(Purify, 0, 4, 0)])
+
+b = Character('Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
+              [Weapon('Spiky Tooth', 'uncommon', 3,
+                      type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
+               Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6)],
+              [(PoisonTouch, 15, 0, 2)])
+
+"""a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
                [Weapon('Sword', 'common', 2),
                 Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)], [])
 
@@ -416,7 +486,7 @@ b2 = Character('Assault2', 100, 100, 100, 100, [3, 2, 10, 3, 2, 2, 3, 5],
 b3 = Character('Assault3', 100, 100, 100, 100, [3, 2, 2, 3, 2, 2, 3, 4],
                [Weapon('Sword', 'common', 2, attack_effect=(Poisoned, 3, 6, 1, 1)),
                 Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)],
-               [(PoisonTouch, 15, 1, 2), (PoisonTouch, 30, 2, 3)])
+               [(PoisonTouch, 15, 1, 2), (PoisonTouch, 30, 2, 3)])"""
 
-game = Game([a, a2, a3], [b, b2, b3])
+game = Game([a], [b])
 game.start()
