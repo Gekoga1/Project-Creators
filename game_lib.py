@@ -44,7 +44,7 @@ class Character:
         self.match = None
 
     def __str__(self):
-        return self.name
+        return f'{self.name}'
 
     def set_up(self, match):
         self.match = match
@@ -389,7 +389,7 @@ class Ability:
                            for j, i in enumerate(match.aero_team)]), *self.owner)
             for i in range(self.number_of_choose):
                 book.append(int(target_input(f'target №{i} - ', *self.owner)) - 1)
-            return map(lambda z: match.characters[z], book)
+            return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
             send('Wrong Index', *self.owner)
         except ValueError:
@@ -410,11 +410,11 @@ class PoisonTouch(Ability):
         return f'Ядовитое касание (стоимость: {self.mp_use} mp, ' \
                f'cd: {self.now_cd}, кол-во целей: {self.number_of_choose})'
 
-    def usage(self, user: Character, match):
+    def usage(self, user, match):
         if self.now_cd == 0 and user.use_mp(self.mp_use):
             targets = self.choose(match)
 
-            for i in targets:
+            for i in targets[0]:
                 i.get_damage(user.intellect * 0.5, self, type_of='special')
                 if i.spell_defence == 0:
                     i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
@@ -437,10 +437,56 @@ class Purify(Ability):
         return f'Очищение (стоимость: {self.mp_use} mp, ' \
                f'cd: {self.now_cd}, на себя)'
 
-    def usage(self, user: Character, match):
+    def usage(self, user, match):
         if self.now_cd == 0 and user.use_mp(self.mp_use):
             send_room(f'{user} очистился от {", ".join(map(str, user.state))}', self.match.room)
             user.state = []
+            self.now_cd = self.cd
+
+            return True
+        else:
+            return False
+
+
+class Splash(Ability):
+    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None):
+        super().__init__(mp_use, cd, number_of_choose, match)
+
+    def __str__(self):
+        return 'Рассекающий удар'
+
+    def full_str(self):
+        return f'Рассекающий удар (стоимость: {self.mp_use} mp, ' \
+               f'cd: {self.now_cd}, кол-во целей: {self.number_of_choose})'
+
+    def usage(self, user, match):
+        if self.now_cd == 0 and user.use_mp(self.mp_use):
+            targets = self.choose(match)
+
+            for i, j in zip(targets[0], targets[1]):
+                user.attack(i)
+                if i.tag == "geo":
+                    try:
+                        if j > 0:
+                            user.attack(self.match.geo_team[j - 1])
+                    except IndexError:
+                        pass
+                    try:
+                        user.attack(self.match.geo_team[j + 1])
+                    except IndexError:
+                        pass
+                elif i.tag == "aero":
+                    j -= self.match.aero_len
+                    try:
+                        if j > 0:
+                            user.attack(self.match.aero_team[j - 1])
+                    except IndexError:
+                        pass
+                    try:
+                        user.attack(self.match.aero_team[j + 1])
+                    except IndexError:
+                        pass
+
             self.now_cd = self.cd
 
             return True
@@ -512,7 +558,7 @@ a = (Character, 'Anthem', 120, 120, 0, 0, [7, 5, 2, 0, 0, 0, 0, 4],
 b = (Character, 'Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
      [Weapon('Spiky Tooth', 'uncommon', 3, type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
       Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6)],
-     [(PoisonTouch, 15, 0, 2)])
+     [(PoisonTouch, 15, 0, 2), (Splash, 5, 2, 1)])
 
 """a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
                [Weapon('Sword', 'common', 2),
