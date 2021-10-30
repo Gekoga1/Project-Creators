@@ -61,9 +61,13 @@ def handle_room(number):
     game = Game(geo_team, aero_team, rooms[number])
     game.start()
 
+    send_room("!GAME_END", rooms[number])
+
     for i in rooms[number]:
         thread = threading.Thread(target=handle_client, args=(i[0], i[1]))
         thread.start()
+
+    rooms.remove(rooms[number])
 
 
 def start():
