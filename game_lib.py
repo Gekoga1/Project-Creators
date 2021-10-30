@@ -505,7 +505,7 @@ class Game:
 
 
 a = (Character, 'Anthem', 120, 120, 0, 0, [7, 5, 2, 0, 0, 0, 0, 4],
-     [Weapon('Sword with troll', 'legendary', 10000000, type_of='melee'),
+     [Weapon('Sword with troll', 'legendary', 10000000 ** 0, type_of='melee'),
       Armor('ANTI MAGICK VEIL', 'epic', [5, 2, 1, 0, 0, 0, 0, 1], 5, 20)],
      [(Purify, 0, 4, 0)])
 

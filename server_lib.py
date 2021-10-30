@@ -112,6 +112,8 @@ def target_input(msg, conn, addr):
     send("!INPUT", conn, addr)
     if msg is not None:
         send(msg, conn, addr)
+    else:
+        send('', conn, addr)
     return receive(conn, addr)
 
 

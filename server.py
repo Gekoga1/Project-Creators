@@ -54,11 +54,10 @@ def handle_room(number):
     aero_team = []
     char = [a, b]
     for j, i in enumerate(rooms[number]):
-        charr = char[randint(0, 1)]
         if j % 2 == 0:
-            geo_team.append(charr[0](*charr[1:], owner=i))
+            geo_team.append(a[0](*a[1:], owner=i))
         else:
-            aero_team.append(charr[0](*charr[1:], owner=i))
+            aero_team.append(b[0](*b[1:], owner=i))
     game = Game(geo_team, aero_team, rooms[number])
     game.start()
 
