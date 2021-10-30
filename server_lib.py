@@ -6,15 +6,52 @@ from random import randint
 
 HEADER = 64
 PORT = 5050
-SERVER = '192.168.2.2'
+SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
-DISCONNECT_MESSAGE = "!DISCONNECT"
 uid = []
 rooms = []
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
+
+
+class Room:
+    def __init__(self, value, members: list):
+        self.value = value
+        self.members = members
+
+    def __len__(self):
+        return len(self.members)
+
+    def __iter__(self):
+        self.current = -1
+        return self
+
+    def __next__(self):
+        self.current += 1
+        try:
+            return self.members[self.current]
+        except IndexError:
+            raise StopIteration
+
+    def __str__(self):
+        return f'{self.value} {self.members}'
+
+    def remove(self, member):
+        self.members.remove(member)
+
+    def add_member(self, member):
+        self.members.append(member)
+
+    def get_members(self):
+        return self.members
+
+    def set_value(self, value):
+        self.value = value
+
+    def is_ready(self):
+        return self.value == len(self.members)
 
 
 def sqlite_request(request, conditions) -> list:
@@ -59,10 +96,23 @@ def send(msg, conn, addr, count=0):
 def receive(conn, addr):
     msg_length = conn.recv(HEADER).decode(FORMAT)
     if msg_length:
-        msg_length = int(msg_length)
+        try:
+            msg_length = int(msg_length)
+        except ValueError:
+            msg_length = 20
         msg = conn.recv(msg_length).decode(FORMAT)
         reception_response(conn, addr, msg)
+        if msg == "!DISCONNECT":
+            conn.close()
+            raise SystemExit
         return msg
+
+
+def target_input(msg, conn, addr):
+    send("!INPUT", conn, addr)
+    if msg is not None:
+        send(msg, conn, addr)
+    return receive(conn, addr)
 
 
 def registration(conn, addr) -> None:
@@ -101,28 +151,27 @@ def login(conn, addr) -> None:
         send(';'.join(result), conn, addr)
 
 
-def create_room(conn, addr):
+def create_room(conn, addr, value):
     for i in range(len(rooms)):
         if len(rooms[i]) == 0:
+            rooms[i].set_value(value)
             rooms[i].append((conn, addr))
-            send('Room created. Wait for second player.', conn, addr)
+            send('Room created. Wait for other players.', conn, addr)
             return i
-    rooms.append([(conn, addr)])
-    send('Room created. Wait for second player.', conn, addr)
+    rooms.append(Room(value, [(conn, addr)]))
+    send('Room created. Wait for other players.', conn, addr)
     return len(rooms) - 1
 
 
 def connect_room(conn, addr):
     for i in range(len(rooms)):
-        if len(rooms[i]) == 1:
-            rooms[i].append((conn, addr))
-            send('Room found. Starting duel.', conn, addr)
+        if not rooms[i].is_ready():
+            send_room("New player joined", rooms[i])
+            rooms[i].add_member((conn, addr))
             return i
-    send('There are no open rooms.', conn, addr)
     return None
 
 
 def send_room(msg, room):
     for i in room:
         send(msg, i[0], i[1])
-    print(msg)

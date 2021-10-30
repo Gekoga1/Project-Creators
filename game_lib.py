@@ -15,7 +15,8 @@ def clamp(value: float, maximum: float, minimal: float) -> float:
 
 class Character:
     def __init__(self, name, max_hp: float, hp: float, max_mp: float, mp: float,
-                 stats: list, gear: list, abilities: list):
+                 stats: list, gear: list, abilities: list, owner=None):
+        self.owner = owner
 
         self.name = name
 
@@ -48,7 +49,7 @@ class Character:
     def set_up(self, match):
         self.match = match
         for j in range(len(self.abilities)):
-            self.abilities[j].match = match
+            self.abilities[j].set_up(match, self.owner)
         self.weapon.set_up(match)
         self.armor.set_up(match)
 
@@ -219,55 +220,56 @@ class Character:
 
     def make_action(self):
         if self.alive:
-            action = input('Actions: attack/ability/info\n').lower()
+            action = target_input('Actions: attack/ability/info\n', *self.owner).lower()
             if action == 'attack':
-                send_room(' '.join([f'{j + 1}: {i.name}' for j, i in enumerate(self.match.geo_team)]),
-                          self.match.room)
-                send_room(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                                    for j, i in enumerate(self.match.aero_team)]), self.match.room)
+                send(' '.join([f'{j + 1}: {i.name}'
+                               for j, i in enumerate(self.match.geo_team)]), *self.owner)
+                send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
+                               for j, i in enumerate(self.match.aero_team)]), *self.owner)
                 try:
-                    choose = int(input('choose target ')) - 1
+                    choose = int(target_input('choose target ', *self.owner)) - 1
                     self.attack(self.match.characters[choose])
                 except IndexError:
-                    send_room('Error action', self.match.room)
+                    send('Error action', *self.owner)
                     self.make_action()
                 except ValueError:
-                    send_room('Error action', self.match.room)
+                    send('Error action', *self.owner)
                     self.make_action()
 
             elif action == 'ability':
                 if len(self.abilities) > 0:
                     for j, i in enumerate(self.abilities):
-                        send_room(f'{j + 1}: {i.full_str()}', self.match.room)
+                        send(f'{j + 1}: {i.full_str()}', *self.owner)
                     try:
-                        choose = int(input()) - 1
+                        choose = int(target_input(None, *self.owner)) - 1
 
                         if not self.abilities[choose].usage(self, self.match):
-                            send_room("You can't do that", self.match.room)
+                            send("You can't do that", *self.owner)
                             self.make_action()
                     except IndexError:
-                        send_room('Error action', self.match.room)
+                        send('Error action', *self.owner)
                         self.make_action()
                     except ValueError:
-                        send_room('Error action', self.match.room)
+                        send('Error action', *self.owner)
                         self.make_action()
             elif action == 'info':
-                send_room(' '.join([f'{j + 1}: {i.name}' for j, i in enumerate(self.match.geo_team)]),
-                          self.match.room)
-                send_room(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                                    for j, i in enumerate(self.match.aero_team)]), self.match.room)
+                send(' '.join([f'{j + 1}: {i.name}'
+                               for j, i in enumerate(self.match.geo_team)]),
+                     *self.owner)
+                send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
+                               for j, i in enumerate(self.match.aero_team)]), *self.owner)
                 try:
-                    choose = int(input('choose target ')) - 1
+                    choose = int(target_input('choose target ', *self.owner)) - 1
                     send_room(self.match.characters[choose].get_info(), self.match.room)
                     self.make_action()
                 except IndexError:
-                    send_room('Error action', self.match.room)
+                    send('Error action', *self.owner)
                     self.make_action()
                 except ValueError:
-                    send_room('Error action', self.match.room)
+                    send('Error action', *self.owner)
                     self.make_action()
             else:
-                send_room('Error action', self.match.room)
+                send('Error action', *self.owner)
                 self.make_action()
 
 
@@ -356,12 +358,13 @@ class Weapon(Gear):
     def set_up(self, match):
         super().set_up(match)
         if self.attack_effect is not None:
-            self.attack_effect += (*self.attack_effect, match)
+            self.attack_effect = (*self.attack_effect, match)
 
 
 class Ability:
-    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None):
+    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None, owner=None):
         self.match = match
+        self.owner = owner
 
         self.mp_use = mp_use
 
@@ -373,20 +376,24 @@ class Ability:
     def __str__(self):
         return 'способность'
 
+    def set_up(self, match, owner):
+        self.match = match
+        self.owner = owner
+
     def choose(self, match):
         try:
             book = []
-            send_room(' '.join([f'{j + 1}: {i.name}'
-                                for j, i in enumerate(match.geo_team)]), self.match.room)
-            send_room(' '.join([f'{j + match.geo_len + 1}: {i.name}'
-                                for j, i in enumerate(match.aero_team)]), self.match.room)
+            send(' '.join([f'{j + 1}: {i.name}'
+                           for j, i in enumerate(match.geo_team)]), *self.owner)
+            send(' '.join([f'{j + match.geo_len + 1}: {i.name}'
+                           for j, i in enumerate(match.aero_team)]), *self.owner)
             for i in range(self.number_of_choose):
-                book.append(int(input(f'target №{i} - ')) - 1)
+                book.append(int(target_input(f'target №{i} - ', *self.owner)) - 1)
             return map(lambda z: match.characters[z], book)
         except IndexError:
-            send_room('Wrong Index', self.match.room)
+            send('Wrong Index', *self.owner)
         except ValueError:
-            send_room('Input Only integer numbers', self.match.room)
+            send('Input Only integer numbers', *self.owner)
 
     def usage(self, user, match):
         pass
@@ -410,7 +417,7 @@ class PoisonTouch(Ability):
             for i in targets:
                 i.get_damage(user.intellect * 0.5, self, type_of='special')
                 if i.spell_defence == 0:
-                    i.apply_effect((Poisoned, 2, 3, 1, 2))
+                    i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
 
             self.now_cd = self.cd
 
@@ -432,7 +439,7 @@ class Purify(Ability):
 
     def usage(self, user: Character, match):
         if self.now_cd == 0 and user.use_mp(self.mp_use):
-            send_room(f'{user} очстился от {", ".join(map(str, user.state))}', self.match.room)
+            send_room(f'{user} очистился от {", ".join(map(str, user.state))}', self.match.room)
             user.state = []
             self.now_cd = self.cd
 
@@ -497,16 +504,15 @@ class Game:
             self.round_end()
 
 
-a = Character('Anthem', 120, 120, 0, 0, [7, 5, 2, 0, 0, 0, 0, 4],
-              [Weapon('Sword with troll', 'legendary', 10000000 ** 0, type_of='melee'),
-               Armor('ANTI MAGICK VEIL', 'epic', [5, 2, 1, 0, 0, 0, 0, 1], 5, 20)],
-              [(Purify, 0, 4, 0)])
+a = (Character, 'Anthem', 120, 120, 0, 0, [7, 5, 2, 0, 0, 0, 0, 4],
+     [Weapon('Sword with troll', 'legendary', 10000000, type_of='melee'),
+      Armor('ANTI MAGICK VEIL', 'epic', [5, 2, 1, 0, 0, 0, 0, 1], 5, 20)],
+     [(Purify, 0, 4, 0)])
 
-b = Character('Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
-              [Weapon('Spiky Tooth', 'uncommon', 3,
-                      type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
-               Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6)],
-              [(PoisonTouch, 15, 0, 2)])
+b = (Character, 'Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
+     [Weapon('Spiky Tooth', 'uncommon', 3, type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
+      Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6)],
+     [(PoisonTouch, 15, 0, 2)])
 
 """a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
                [Weapon('Sword', 'common', 2),
