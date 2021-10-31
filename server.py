@@ -1,31 +1,42 @@
-from server_lib import *
-# custom lib with some functions and another libs
-
 from game_lib import *
 
 
-def handle_client(conn, addr):
+def handle_client(conn, addr, y_char=None):
     print(f"[NEW CONNECTION] {addr} connected.")
     print(f"threads {threading.active_count()}")
 
     connected = True
+    if y_char is None:
+        logined = False
+    else:
+        logined = True
+        y_id = sqlite_request("""SELECT CharacterId FROM Character
+                                WHERE Pickle = ?""", (y_char,))
+
     while connected:
         msg = receive(conn, addr)
         if msg == "!DISCONNECT":
             connected = False
+            logined = False
 
-        elif msg == "!REGISTRATION":
-            registration(conn, addr)
+        elif msg == "!REGISTRATION" and not logined:
+            info = registration(conn, addr)
+            if info:
+                y_id, y_char = info[0], info[1]
+                logined = True
 
-        elif msg == "!LOGIN":
-            login(conn, addr)
+        elif msg == "!LOGIN" and not logined:
+            info = login(conn, addr)
+            if info:
+                y_id, y_char = info[0], info[1]
+                logined = True
 
-        elif msg == "!CREATE_ROOM":
-            create_room(conn, addr, int(receive(conn, addr)))
+        elif msg == "!CREATE_ROOM" and logined:
+            create_room(conn, addr, int(receive(conn, addr)), pickle.loads(y_char))
             break
 
-        elif msg == "!CONNECT_ROOM":
-            room_addr = connect_room(conn, addr)
+        elif msg == "!CONNECT_ROOM" and logined:
+            room_addr = connect_room(conn, addr, pickle.loads(y_char))
             if room_addr is not None:
                 send("!True", conn, addr)
                 send('Room found.', conn, addr)
@@ -52,19 +63,20 @@ def handle_room(number):
 
     geo_team = []
     aero_team = []
-    char = [a, b]
     for j, i in enumerate(rooms[number]):
         if j % 2 == 0:
-            geo_team.append(a[0](*a[1:], owner=i))
+            rooms[number].chars[j].owner = i
+            geo_team.append(rooms[number].chars[j])
         else:
-            aero_team.append(b[0](*b[1:], owner=i))
+            rooms[number].chars[j].owner = i
+            aero_team.append(rooms[number].chars[j])
     game = Game(geo_team, aero_team, rooms[number])
     game.start()
 
     send_room("!GAME_END", rooms[number])
 
     for i in rooms[number]:
-        thread = threading.Thread(target=handle_client, args=(i[0], i[1]))
+        thread = threading.Thread(target=handle_client, args=(i[0], i[1], rooms[number].chars))
         thread.start()
 
     rooms.remove(rooms[number])
@@ -81,5 +93,5 @@ def start():
 
 if __name__ == '__main__':
     print("[STARTING] server is starting...")
-    uid = list(map(lambda qz: qz[0], sqlite_request("""SELECT id FROM Accounts""", ())))
+    uid = list(map(lambda qz: qz[0], sqlite_request("""SELECT id FROM Account""", ())))
     start()

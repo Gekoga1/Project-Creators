@@ -1,11 +1,5 @@
 import sys
-import atexit
-
 from client_lib import *
-
-
-def exit_handler():
-    send("!DISCONNECT")
 
 
 def handle_game():
@@ -20,26 +14,17 @@ def handle_game():
             print(receivation)
 
 
-if __name__ == '__main__':
-    atexit.register(exit_handler)
+def handle_client():
     while True:
         command = input('command: ').lower()
-        if command == 'register':
-            send("!REGISTRATION")
-            send(';'.join([input('name: '), input('password: ')]))
-        elif command == 'login':
-            send("!LOGIN")
-            send(';'.join([input('name: '), input('password: ')]))
-            print(receive())
-        elif command == 'disconnect':
-            send("!DISCONNECT")
-            break
-        elif command[:11] == 'create room' and len(command) > 11 and int(command[12:]) > 1:
+
+        if command[:11] == 'create room' and len(command) > 11 and int(command[12:]) > 1:
             send("!CREATE_ROOM")
             send(command[12:])
             while True:
                 print(receive())
                 handle_game()
+
         elif command == 'connect room':
             send("!CONNECT_ROOM")
             answer = receive()
@@ -48,3 +33,46 @@ if __name__ == '__main__':
                 handle_game()
             elif answer == "!False":
                 print(receive())
+
+        elif command == 'disconnect':
+            break
+
+
+if __name__ == '__main__':
+    while True:
+
+        command = input('command: ').lower()
+
+        if command == 'register':
+            send("!REGISTRATION")
+            send(';'.join([input('name: '), input('password: ')]))
+            answer = receive()
+
+            if answer == "!False":
+                print("Try another Name")
+            else:
+                print("You successfully registered")
+                print("You need to create your character")
+                create_character()
+                y_id = int(answer)
+                handle_client()
+
+        elif command == 'login':
+            send("!LOGIN")
+            send(';'.join([input('name: '), input('password: ')]))
+            answer = receive()
+            if answer == "!False":
+                print("Where is no such account")
+            else:
+                y_id = int(answer)
+                answer = receive()
+                if answer == "!NO_CHAR":
+                    print("You need to create your character")
+                    create_character()
+                    handle_client()
+                else:
+                    handle_client()
+
+        """elif command == 'disconnect':
+                    send("!DISCONNECT")
+                    break"""
