@@ -32,11 +32,11 @@ def handle_client(conn, addr, y_char=None):
                 logined = True
 
         elif msg == "!CREATE_ROOM" and logined:
-            create_room(conn, addr, int(receive(conn, addr)), pickle.loads(y_char))
+            create_room(conn, addr, int(receive(conn, addr)), pickle.loads(a))
             break
 
         elif msg == "!CONNECT_ROOM" and logined:
-            room_addr = connect_room(conn, addr, pickle.loads(y_char))
+            room_addr = connect_room(conn, addr, pickle.loads(b))
             if room_addr is not None:
                 send("!True", conn, addr)
                 send('Room found.', conn, addr)

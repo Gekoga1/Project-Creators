@@ -3,7 +3,7 @@ import pickle
 
 
 HEADER = 64
-PORT = 5050
+PORT = 41480
 FORMAT = 'utf-8'
 SERVER = '192.168.1.207'
 ADDR = (SERVER, PORT)

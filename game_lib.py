@@ -10,7 +10,7 @@ import pickle
 
 
 HEADER = 64
-PORT = 5050
+PORT = 41480
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
@@ -472,15 +472,15 @@ class Character:
                                for j, i in enumerate(self.match.geo_team)]), *self.owner)
                 send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
                                for j, i in enumerate(self.match.aero_team)]), *self.owner)
-                try:
-                    choose = int(target_input('choose target ', *self.owner)) - 1
-                    self.attack(self.match.characters[choose])
-                except IndexError:
-                    send('Error action', *self.owner)
-                    self.make_action()
-                except ValueError:
-                    send('Error action', *self.owner)
-                    self.make_action()
+                #try:
+                choose = int(target_input('choose target ', *self.owner)) - 1
+                self.attack(self.match.characters[choose])
+                #except IndexError:
+                    #send('Error action', *self.owner)
+                   #self.make_action()
+                #except ValueError:
+                  #  send('Error action', *self.owner)
+                  #  self.make_action()
 
             elif action == 'ability':
                 if len(self.abilities) > 0:
@@ -808,6 +808,13 @@ b = (Character, 'Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
      Weapon('Spiky Tooth', 'uncommon', 3, type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
      Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6),
      [(PoisonTouch, 15, 0, 2), (Splash, 5, 2, 1)])
+
+a = a[0](*a[1:])
+b = b[0](*b[1:])
+
+a = pickle.dumps(a, 3)
+
+b = pickle.dumps(b, 3)
 
 """a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
                [Weapon('Sword', 'common', 2),
