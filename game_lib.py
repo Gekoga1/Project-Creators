@@ -11,7 +11,7 @@ import pickle
 
 HEADER = 64
 PORT = 41480
-SERVER = socket.gethostbyname(socket.gethostname())
+SERVER = "25.73.197.223"
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 uid = []

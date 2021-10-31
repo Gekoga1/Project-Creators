@@ -5,7 +5,7 @@ import pickle
 HEADER = 64
 PORT = 41480
 FORMAT = 'utf-8'
-SERVER = '192.168.1.207'
+SERVER = '25.73.197.223'
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
