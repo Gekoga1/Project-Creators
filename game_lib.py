@@ -22,10 +22,9 @@ server.bind(ADDR)
 
 
 class Room:
-    def __init__(self, value, members, chars: list):
+    def __init__(self, value, members):
         self.value = value
         self.members = members
-        self.chars = chars
 
     def __len__(self):
         return len(self.members)
@@ -47,9 +46,8 @@ class Room:
     def remove(self, member):
         self.members.remove(member)
 
-    def add_member(self, member, char):
+    def add_member(self, member):
         self.members.append(member)
-        self.chars.append(char)
 
     def get_members(self):
         return self.members
@@ -78,94 +76,100 @@ def sqlite_update(request, conditions) -> None:
     con.close()
 
 
-def reception_response(conn, addr, msg: str) -> None:
-    print(f"[{addr}] {msg}")
-    conn.send("Msg received".encode(FORMAT))
-
-
-def send(msg, conn, addr, count=0):
-    message = msg.encode(FORMAT)
-    msg_length = len(message)
-    send_length = str(msg_length).encode(FORMAT)
-    send_length += b' ' * (HEADER - len(send_length))
-    conn.send(send_length)    # msg with length of next msg
-    conn.send(message)
-    if conn.recv(HEADER).decode(FORMAT) == "Msg received":  # receiving test
-        pass
-    else:
-        count += 1
-        if count == 11:
-            print('Something wrong with connection')
-            conn.close()
-        send(msg, conn, addr, count)
-
-
-def send_bytes(msg, conn, addr, count=0):
-    msg_length = len(msg)
-    send_length = str(msg_length).encode(FORMAT)
-    send_length += b' ' * (HEADER - len(send_length))
-    conn.send(send_length)  # msg with length of next msg
-    conn.send(msg)
-    if conn.recv(HEADER).decode(FORMAT) == "Msg received":  # receiving test
-        pass
-    else:
-        count += 1
-        if count == 11:
-            print('Something wrong with connection')
-            conn.close()
-        send_bytes(msg, conn, addr, count)
-
-
-def receive(conn, addr):
-    msg_length = conn.recv(HEADER).decode(FORMAT)
-    if msg_length:
+def send(msg, user):
+    try:
+        message = msg.encode(FORMAT)
+        msg_length = len(message)
+        send_length = str(msg_length).encode(FORMAT)
+        send_length += b' ' * (HEADER - len(send_length))
+        user.conn.send(send_length)    # msg with length of next msg
+        user.conn.send(message)
+    except ConnectionError or OSError:
         try:
-            msg_length = int(msg_length)
-        except ValueError:
-            msg_length = 20
-        msg = conn.recv(msg_length).decode(FORMAT)
-        reception_response(conn, addr, msg)
-        if msg == "!DISCONNECT":
-            conn.close()
+            user.conn.close()
             raise SystemExit
-        return msg
+        except OSError:
+            raise SystemExit
 
 
-def receive_bytes(conn, addr):
-    msg_length = conn.recv(HEADER).decode(FORMAT)
-    if msg_length:
+def send_bytes(msg, user):
+    try:
+        msg_length = len(msg)
+        send_length = str(msg_length).encode(FORMAT)
+        send_length += b' ' * (HEADER - len(send_length))
+        user.conn.send(send_length)  # msg with length of next msg
+        user.conn.send(msg)
+    except ConnectionError or OSError:
         try:
-            msg_length = int(msg_length)
-        except ValueError:
-            msg_length = 20
-        msg = conn.recv(msg_length)
-        reception_response(conn, addr, 'bytes')
-        if msg == "!DISCONNECT":
-            conn.close()
+            user.conn.close()
             raise SystemExit
-        return msg
+        except OSError:
+            raise SystemExit
 
 
-def target_input(msg, conn, addr):
-    send("!INPUT", conn, addr)
+def receive(user):
+    try:
+        msg_length = user.conn.recv(HEADER).decode(FORMAT)
+        if msg_length:
+            try:
+                msg_length = int(msg_length)
+            except ValueError:
+                msg_length = 20
+            msg = user.conn.recv(msg_length).decode(FORMAT)
+            if msg == "!DISCONNECT":
+                user.conn.close()
+                raise SystemExit
+            return msg
+    except ConnectionError or OSError:
+        try:
+            user.conn.close()
+            raise SystemExit
+        except OSError:
+            raise SystemExit
+
+
+def receive_bytes(user):
+    try:
+        msg_length = user.conn.recv(HEADER).decode(FORMAT)
+        if msg_length:
+            try:
+                msg_length = int(msg_length)
+            except ValueError:
+                msg_length = 20
+            msg = user.conn.recv(msg_length)
+            if msg == "!DISCONNECT":
+                user.conn.close()
+                raise SystemExit
+            return msg
+    except ConnectionError or OSError:
+        try:
+            user.conn.close()
+            raise SystemExit
+        except OSError:
+            raise SystemExit
+
+
+def target_input(msg, user):
+    send("!INPUT", user)
     if msg is not None:
-        send(msg, conn, addr)
+        send(msg, user)
     else:
-        send('', conn, addr)
-    return receive(conn, addr)
+        send('', user)
+    return receive(user)
 
 
-def registration(conn, addr):
-    msg = receive(conn, addr)
+def registration(user):
+    msg = receive(user)
     msg = msg.split(';')
 
     result = sqlite_request("""SELECT id FROM Account
                                 WHERE name = ?""", (msg[0],))
 
     if len(result) > 0:
-        send("!False", conn, addr)
+        send("!False", user)
         return False
     else:
+
         while True:
             new_uid = randint(0, 999999999)
             if new_uid not in uid:
@@ -174,73 +178,97 @@ def registration(conn, addr):
         sqlite_update("""INSERT INTO Account(id, name, password, lvl)
                         VALUES(?, ?, ?, 1)""", (new_uid, msg[0], msg[1]))
 
+        user.y_id = new_uid
+        user.name = msg[0]
+        user.password = msg[1]
+
         uid.append(new_uid)
-        send(str(new_uid), conn, addr)
+        send(str(new_uid), user)
 
-        return create_character(receive_bytes(conn, addr), new_uid)
+        return create_character(receive_bytes(user), user)
 
 
-def login(conn, addr):
-    msg = receive(conn, addr)
+def login(user):
+    msg = receive(user)
     msg = msg.split(';')
 
     try:
         result = sqlite_request("""SELECT id FROM Account
                                     WHERE name = ? AND password = ?""", (msg[0], msg[1]))[0][0]
-        send(str(result), conn, addr)
+        send(str(result), user)
         y_id = result
 
         try:
+            user.name = msg[0]
+            user.password = msg[1]
+
             result = sqlite_request("""SELECT Pickle FROM Character
                                         WHERE CharacterId = ?""", (y_id,))[0][0]
-            send("!True", conn, addr)
+            send("!True", user)
+
+            user.y_id = y_id
+            user.y_char = result
+
             return [y_id, result]
         except IndexError:
-            send("!NO_CHAR", conn, addr)
-            return create_character(receive_bytes(conn, addr), y_id)
+            send("!NO_CHAR", user)
+
+            user.y_id = y_id
+
+            return create_character(receive_bytes(user), user)
 
     except IndexError:
-        send("!False", conn, addr)
+        send("!False", user)
         return False
 
 
-def create_character(y_char, y_id):
+def create_character(y_char, user):
     stat = pickle.loads(y_char)
     y_char = pickle.dumps(Character(*stat))
 
     sqlite_update("""INSERT INTO Character(CharacterId, Pickle)
-                    VALUES(?, ?)""", (y_id, y_char))
+                    VALUES(?, ?)""", (user.y_id, y_char))
     sqlite_update("""UPDATE Account
                     SET CharacterId = ?
-                    WHERE id = ?""", (y_id, y_id))
+                    WHERE id = ?""", (user.y_id, user.y_id))
 
-    return [y_id, y_char]
+    user.y_char = y_char
+
+    return [user.y_id, y_char]
 
 
-def create_room(conn, addr, value, char):
+def create_room(user, value):
     for i in range(len(rooms)):
         if len(rooms[i]) == 0:
             rooms[i].set_value(value)
-            rooms[i].add_member((conn, addr), char)
-            send('Room created. Wait for other players.', conn, addr)
+            rooms[i].add_member(user)
+            send('Room created. Wait for other players.', user)
             return i
-    rooms.append(Room(value, [(conn, addr)], [char]))
-    send('Room created. Wait for other players.', conn, addr)
+    rooms.append(Room(value, [user]))
+    send('Room created. Wait for other players.', user)
     return len(rooms) - 1
 
 
-def connect_room(conn, addr, char):
+def connect_room(user):
     for i in range(len(rooms)):
         if not rooms[i].is_ready():
             send_room("New player joined", rooms[i])
-            rooms[i].add_member((conn, addr), char)
+            rooms[i].add_member(user)
             return i
     return None
 
 
 def send_room(msg, room):
+    for_remove = []
+
     for i in room:
-        send(msg, i[0], i[1])
+        try:
+            send(msg, i)
+        except OSError or SystemExit:
+            for_remove.append(i)
+
+    for i in for_remove:
+        room.remove(i)
 
 
 def clamp(value: float, maximum: float, minimal: float) -> float:
@@ -466,59 +494,58 @@ class Character:
 
     def make_action(self):
         if self.alive:
-            action = target_input('Actions: attack/ability/info\n', *self.owner).lower()
+            action = target_input('Actions: attack/ability/info\n', self.owner).lower()
             if action == 'attack':
                 send(' '.join([f'{j + 1}: {i.name}'
-                               for j, i in enumerate(self.match.geo_team)]), *self.owner)
+                               for j, i in enumerate(self.match.geo_team)]), self.owner)
                 send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                               for j, i in enumerate(self.match.aero_team)]), *self.owner)
-                #try:
-                choose = int(target_input('choose target ', *self.owner)) - 1
-                self.attack(self.match.characters[choose])
-                #except IndexError:
-                    #send('Error action', *self.owner)
-                   #self.make_action()
-                #except ValueError:
-                  #  send('Error action', *self.owner)
-                  #  self.make_action()
+                               for j, i in enumerate(self.match.aero_team)]), self.owner)
+                try:
+                    choose = int(target_input('choose target ', self.owner)) - 1
+                    self.attack(self.match.characters[choose])
+                except IndexError:
+                    send('Error action', self.owner)
+                    self.make_action()
+                except ValueError:
+                    send('Error action', self.owner)
+                    self.make_action()
 
             elif action == 'ability':
                 if len(self.abilities) > 0:
                     for j, i in enumerate(self.abilities):
-                        send(f'{j + 1}: {i.full_str()}', *self.owner)
+                        send(f'{j + 1}: {i.full_str()}', self.owner)
                     try:
-                        choose = int(target_input(None, *self.owner)) - 1
+                        choose = int(target_input(None, self.owner)) - 1
 
                         if not self.abilities[choose].usage(self, self.match):
-                            send("You can't do that", *self.owner)
+                            send("You can't do that", self.owner)
                             self.make_action()
                     except IndexError:
-                        send('Error action', *self.owner)
+                        send('Error action', self.owner)
                         self.make_action()
                     except ValueError:
-                        send('Error action', *self.owner)
+                        send('Error action', self.owner)
                         self.make_action()
                 else:
-                    send('Error action', *self.owner)
+                    send('Error action', self.owner)
                     self.make_action()
             elif action == 'info':
                 send(' '.join([f'{j + 1}: {i.name}'
-                               for j, i in enumerate(self.match.geo_team)]),
-                     *self.owner)
+                               for j, i in enumerate(self.match.geo_team)]), self.owner)
                 send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                               for j, i in enumerate(self.match.aero_team)]), *self.owner)
+                               for j, i in enumerate(self.match.aero_team)]), self.owner)
                 try:
-                    choose = int(target_input('choose target ', *self.owner)) - 1
+                    choose = int(target_input('choose target ', self.owner)) - 1
                     send_room(self.match.characters[choose].get_info(), self.match.room)
                     self.make_action()
                 except IndexError:
-                    send('Error action', *self.owner)
+                    send('Error action', self.owner)
                     self.make_action()
                 except ValueError:
-                    send('Error action', *self.owner)
+                    send('Error action', self.owner)
                     self.make_action()
             else:
-                send('Error action', *self.owner)
+                send('Error action', self.owner)
                 self.make_action()
 
 
@@ -633,16 +660,16 @@ class Ability:
         try:
             book = []
             send(' '.join([f'{j + 1}: {i.name}'
-                           for j, i in enumerate(match.geo_team)]), *self.owner)
+                           for j, i in enumerate(match.geo_team)]), self.owner)
             send(' '.join([f'{j + match.geo_len + 1}: {i.name}'
-                           for j, i in enumerate(match.aero_team)]), *self.owner)
+                           for j, i in enumerate(match.aero_team)]), self.owner)
             for i in range(self.number_of_choose):
-                book.append(int(target_input(f'target №{i} - ', *self.owner)) - 1)
+                book.append(int(target_input(f'target №{i} - ', self.owner)) - 1)
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
-            send('Wrong Index', *self.owner)
+            send('Wrong Index', self.owner)
         except ValueError:
-            send('Input Only integer numbers', *self.owner)
+            send('Input Only integer numbers', self.owner)
 
     def usage(self, user, match):
         pass
