@@ -1,5 +1,6 @@
 import socket
 import pickle
+from collections import defaultdict
 
 
 HEADER = 64

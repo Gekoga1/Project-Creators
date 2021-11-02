@@ -1,12 +1,10 @@
-from typing import Union
-from random import randint
-
 import socket
 import sqlite3
 import threading
 import time
 from random import randint
 import pickle
+from collections import defaultdict
 
 
 HEADER = 64
@@ -176,12 +174,15 @@ def registration(user):
             if new_uid not in uid:
                 break
 
-        sqlite_update("""INSERT INTO Account(id, name, password, lvl)
-                        VALUES(?, ?, ?, 1)""", (new_uid, msg[0], msg[1]))
+        sqlite_update("""INSERT INTO Account(id, name, password, lvl, Weapons, Armors)
+                        VALUES(?, ?, ?, 1, ?, ?)""", (new_uid, msg[0], msg[1],
+                                                      pickle.dumps([1, 2, 3], 3), pickle.dumps([2, 3], 3)))
 
         user.y_id = new_uid
         user.name = msg[0]
         user.password = msg[1]
+        user.inventory["weapon"] = [1, 2, 3]
+        user.inventory["armor"] = [2, 3]
 
         uid.append(new_uid)
         send(str(new_uid), user)
@@ -211,6 +212,14 @@ def login(user):
             user.y_id = y_id
             user.y_char = result
 
+            weapon = pickle.loads(sqlite_request("""SELECT Weapons FROM Account
+                                                    WHERE id = ?""", (y_id,))[0][0])
+            user.inventory["weapon"] = weapon
+
+            armor = pickle.loads(sqlite_request("""SELECT Armors FROM Account
+                                                    WHERE id = ?""", (y_id,))[0][0])
+            user.inventory["armor"] = armor
+
             return [y_id, result]
         except IndexError:
 
@@ -224,10 +233,7 @@ def login(user):
 
 
 def create_character(user):
-    y_char = pickle.dumps(Character(str(user.y_id), 20, 20, 10, 10, [1, 1, 1, 1, 1, 1, 1, 1],
-                                    Weapon("Hands", "common", 1, "melee"),
-                                    Armor("Nothing", "common", [0, 0, 0, 0, 0, 0, 0, 0], 0, 0),
-                                    [(PoisonTouch, 10, 1, 2), (Splash, 10, 2, 1)]))
+    y_char = pickle.dumps(Character(str(user.y_id), 20, 20, 10, 10, [1, 1, 1, 1, 1, 1, 1, 1], None, None, []))
 
     sqlite_update("""INSERT INTO Character(CharacterId, Pickle)
                     VALUES(?, ?)""", (user.y_id, y_char))

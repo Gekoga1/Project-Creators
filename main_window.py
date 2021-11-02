@@ -26,7 +26,7 @@ class Ui_MainWindow(object):
         self.Avatar.setFrameShadow(QtWidgets.QFrame.Raised)
         self.Avatar.setObjectName("Avatar")
         self.Lvl = QtWidgets.QLabel(self.centralwidget)
-        self.Lvl.setGeometry(QtCore.QRect(18, 11, 31, 20))
+        self.Lvl.setGeometry(QtCore.QRect(16, 10, 31, 20))
         font = QtGui.QFont()
         font.setPointSize(7)
         font.setItalic(False)
