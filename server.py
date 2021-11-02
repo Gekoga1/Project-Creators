@@ -1,21 +1,71 @@
+import time
+
 from game_lib import *
 from collections import defaultdict
 
 
 class User:
-    def __init__(self, conn, addr, y_id, name, password, y_char):
+    def __init__(self, conn, addr, y_id, name, password, y_char: Character, lvl, inventory=None):
         self.conn = conn
         self.addr = addr
         self.y_id = y_id
         self.name = name
         self.password = password
         self.y_char = y_char
+        self.lvl = lvl
+        self.inventory = inventory
+
+    def __str__(self):
+        return f'{self.name}'
 
     def get_conn(self):
         return self.conn, self.addr
 
-    def __str__(self):
-        return f'{self.name}'
+    def get_info(self):
+        return Info(self.lvl, self.y_char.name, self.y_char.stats,
+                    list(map(str, self.y_char.abilities)),
+                    Info_Weapon(*self.y_char.weapon.get_info()),
+                    Info_Armor(*self.y_char.armor.get_info()))
+
+    def unpack_info(self, info):
+        self.y_char.name = info.name
+        self.y_char.stats = info.stats
+
+    def update_db(self):
+        owner = self.y_char.owner
+        self.y_char.owner = None
+        sqlite_update("""UPDATE Character
+                        SET Pickle = ?
+                        WHERE CharacterId = ?""", (pickle.dumps(self.y_char, 3), self.y_id))
+        self.y_char.owner = owner
+
+
+class Info_Weapon:
+    def __init__(self, name, rarity, base_damage, type_of, attack_effect):
+        self.name = name
+        self.rarity = rarity
+        self.base_damage = base_damage
+        self.type_of = type_of
+        self.attack_effect = attack_effect
+
+
+class Info_Armor:
+    def __init__(self, name, rarity, stats, defence, spell_defence):
+        self.name = name
+        self.rarity = rarity
+        self.stats = stats
+        self.defence = defence
+        self.spell_defence = spell_defence
+
+
+class Info:
+    def __init__(self, lvl, name, stats, abilities, weapon, armor):
+        self.lvl = lvl
+        self.name = name
+        self.stats = stats
+        self.abilities = abilities
+        self.weapon = weapon
+        self.armor = armor
 
 
 def handle_client(user):
@@ -39,6 +89,7 @@ def handle_client(user):
             if info:
                 user.y_id, user.y_char = info[0], pickle.loads(info[1])
                 user.y_char.owner = user
+                send_bytes(pickle.dumps(user.get_info(), 3), user)
                 logined = True
 
         elif msg == "!LOGIN" and not logined:
@@ -46,6 +97,7 @@ def handle_client(user):
             if info:
                 user.y_id, user.y_char = info[0], pickle.loads(info[1])
                 user.y_char.owner = user
+                send_bytes(pickle.dumps(user.get_info(), 3), user)
                 logined = True
 
         elif msg == "!CREATE_ROOM" and logined:
@@ -67,6 +119,10 @@ def handle_client(user):
             else:
                 send("!False", user)
                 send('There are no open rooms.', user)
+
+        elif msg == "!SAVE_POINT":
+            user.unpack_info(pickle.loads(receive_bytes(user)))
+            user.update_db()
 
     if not connected:
         user.conn.close()
@@ -115,7 +171,7 @@ def start():
     print(f"[LISTENING] Server is listening on {SERVER}")
     while True:
         conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(User(conn, addr, None, None, None, None),))
+        thread = threading.Thread(target=handle_client, args=(User(conn, addr, None, None, None, None, 1),))
         thread.start()
 
 

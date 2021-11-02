@@ -116,6 +116,7 @@ def receive(user):
             except ValueError:
                 msg_length = 20
             msg = user.conn.recv(msg_length).decode(FORMAT)
+            print(user.addr, msg)
             if msg == "!DISCONNECT":
                 user.conn.close()
                 raise SystemExit
@@ -185,7 +186,7 @@ def registration(user):
         uid.append(new_uid)
         send(str(new_uid), user)
 
-        return create_character(receive_bytes(user), user)
+        return create_character(user)
 
 
 def login(user):
@@ -193,10 +194,12 @@ def login(user):
     msg = msg.split(';')
 
     try:
-        result = sqlite_request("""SELECT id FROM Account
-                                    WHERE name = ? AND password = ?""", (msg[0], msg[1]))[0][0]
-        send(str(result), user)
-        y_id = result
+        result = sqlite_request("""SELECT id, Lvl FROM Account
+                                    WHERE name = ? AND password = ?""", (msg[0], msg[1]))[0]
+        send("!True", user)
+
+        y_id = result[0]
+        user.lvl = result[1]
 
         try:
             user.name = msg[0]
@@ -204,27 +207,27 @@ def login(user):
 
             result = sqlite_request("""SELECT Pickle FROM Character
                                         WHERE CharacterId = ?""", (y_id,))[0][0]
-            send("!True", user)
 
             user.y_id = y_id
             user.y_char = result
 
             return [y_id, result]
         except IndexError:
-            send("!NO_CHAR", user)
 
             user.y_id = y_id
 
-            return create_character(receive_bytes(user), user)
+            return create_character(user)
 
     except IndexError:
         send("!False", user)
         return False
 
 
-def create_character(y_char, user):
-    stat = pickle.loads(y_char)
-    y_char = pickle.dumps(Character(*stat))
+def create_character(user):
+    y_char = pickle.dumps(Character(str(user.y_id), 20, 20, 10, 10, [1, 1, 1, 1, 1, 1, 1, 1],
+                                    Weapon("Hands", "common", 1, "melee"),
+                                    Armor("Nothing", "common", [0, 0, 0, 0, 0, 0, 0, 0], 0, 0),
+                                    [(PoisonTouch, 10, 1, 2), (Splash, 10, 2, 1)]))
 
     sqlite_update("""INSERT INTO Character(CharacterId, Pickle)
                     VALUES(?, ?)""", (user.y_id, y_char))
@@ -242,10 +245,8 @@ def create_room(user, value):
         if len(rooms[i]) == 0:
             rooms[i].set_value(value)
             rooms[i].add_member(user)
-            send('Room created. Wait for other players.', user)
             return i
     rooms.append(Room(value, [user]))
-    send('Room created. Wait for other players.', user)
     return len(rooms) - 1
 
 
@@ -613,6 +614,9 @@ class Gear:
         self.rarity = rarity
         self.match = match
 
+    def __str__(self):
+        return self.name
+
     def set_up(self, match):
         self.match = match
 
@@ -622,6 +626,9 @@ class Armor(Gear):
         super().__init__(name, rarity, match)
         self.stats = stats
         self.defence, self.spell_defence = defence, spell_defence
+
+    def get_info(self):
+        return self.name, self.rarity, self.stats, self.defence, self.spell_defence
 
 
 class Weapon(Gear):
@@ -635,6 +642,9 @@ class Weapon(Gear):
         super().set_up(match)
         if self.attack_effect is not None:
             self.attack_effect = (*self.attack_effect, match)
+
+    def get_info(self):
+        return self.name, self.rarity, self.base_damage, self.type_of, str(self.attack_effect)
 
 
 class Ability:
@@ -691,7 +701,7 @@ class PoisonTouch(Ability):
             targets = self.choose(match)
 
             for i in targets[0]:
-                i.get_damage(user.intellect * 0.5, self, type_of='special')
+                i.get_damage(user.intellect * 0.5 * user.geo, self, type_of='special')
                 if i.spell_defence == 0:
                     i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
 
