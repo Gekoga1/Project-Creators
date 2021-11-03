@@ -187,30 +187,8 @@
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <layout class="QGridLayout" name="gridLayout">
-       <item row="3" column="1">
-        <widget class="QSpinBox" name="InitValue">
-         <property name="minimumSize">
-          <size>
-           <width>34</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>44</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="value">
-          <number>1</number>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="StrLable">
+       <item row="3" column="0">
+        <widget class="QLabel" name="InitLable">
          <property name="font">
           <font>
            <family>Arial</family>
@@ -218,29 +196,7 @@
           </font>
          </property>
          <property name="text">
-          <string>Strength:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QSpinBox" name="AgilityValue">
-         <property name="minimumSize">
-          <size>
-           <width>34</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>44</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="value">
-          <number>1</number>
+          <string>Initiative:</string>
          </property>
         </widget>
        </item>
@@ -257,30 +213,8 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="1">
-        <widget class="QSpinBox" name="StrValue">
-         <property name="minimumSize">
-          <size>
-           <width>34</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>44</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="value">
-          <number>1</number>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="InitLable">
+       <item row="0" column="0">
+        <widget class="QLabel" name="StrLable">
          <property name="font">
           <font>
            <family>Arial</family>
@@ -288,12 +222,12 @@
           </font>
          </property>
          <property name="text">
-          <string>Initiative:</string>
+          <string>Strength:</string>
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
-        <widget class="QSpinBox" name="IntValue">
+       <item row="0" column="1">
+        <widget class="QSpinBox" name="StrValue">
          <property name="minimumSize">
           <size>
            <width>34</width>
@@ -327,25 +261,8 @@
          </property>
         </widget>
        </item>
-      </layout>
-     </item>
-     <item>
-      <layout class="QGridLayout" name="gridLayout_2">
-       <item row="0" column="0">
-        <widget class="QLabel" name="PyroLable">
-         <property name="font">
-          <font>
-           <family>Arial</family>
-           <pointsize>9</pointsize>
-          </font>
-         </property>
-         <property name="text">
-          <string>Pyro:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QSpinBox" name="PyroValue">
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="InitValue">
          <property name="minimumSize">
           <size>
            <width>34</width>
@@ -366,6 +283,134 @@
          </property>
         </widget>
        </item>
+       <item row="2" column="1">
+        <widget class="QSpinBox" name="IntValue">
+         <property name="minimumSize">
+          <size>
+           <width>34</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="value">
+          <number>1</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QSpinBox" name="AgilityValue">
+         <property name="minimumSize">
+          <size>
+           <width>34</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="value">
+          <number>1</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="MpLable">
+         <property name="font">
+          <font>
+           <family>Arial</family>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Mana:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="MpValue">
+         <property name="minimumSize">
+          <size>
+           <width>34</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>10</number>
+         </property>
+         <property name="maximum">
+          <number>1000</number>
+         </property>
+         <property name="singleStep">
+          <number>10</number>
+         </property>
+         <property name="value">
+          <number>10</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="2" column="0">
+        <widget class="QLabel" name="GeoLable">
+         <property name="font">
+          <font>
+           <family>Arial</family>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Geo:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="AeroLable">
+         <property name="font">
+          <font>
+           <family>Arial</family>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Aero:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="PyroLable">
+         <property name="font">
+          <font>
+           <family>Arial</family>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Pyro:</string>
+         </property>
+        </widget>
+       </item>
        <item row="1" column="0">
         <widget class="QLabel" name="AquaLable">
          <property name="font">
@@ -376,6 +421,28 @@
          </property>
          <property name="text">
           <string>Aqua:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="AeroValue">
+         <property name="minimumSize">
+          <size>
+           <width>34</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="value">
+          <number>1</number>
          </property>
         </widget>
        </item>
@@ -401,16 +468,25 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="GeoLable">
-         <property name="font">
-          <font>
-           <family>Arial</family>
-           <pointsize>9</pointsize>
-          </font>
+       <item row="0" column="1">
+        <widget class="QSpinBox" name="PyroValue">
+         <property name="minimumSize">
+          <size>
+           <width>34</width>
+           <height>20</height>
+          </size>
          </property>
-         <property name="text">
-          <string>Geo:</string>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>20</height>
+          </size>
+         </property>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="value">
+          <number>1</number>
          </property>
         </widget>
        </item>
@@ -436,8 +512,8 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="AeroLable">
+       <item row="4" column="0">
+        <widget class="QLabel" name="HpLable">
          <property name="font">
           <font>
            <family>Arial</family>
@@ -445,12 +521,12 @@
           </font>
          </property>
          <property name="text">
-          <string>Aero:</string>
+          <string>Healph:</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
-        <widget class="QSpinBox" name="AeroValue">
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="HpValue">
          <property name="minimumSize">
           <size>
            <width>34</width>
@@ -464,10 +540,16 @@
           </size>
          </property>
          <property name="minimum">
-          <number>1</number>
+          <number>10</number>
+         </property>
+         <property name="maximum">
+          <number>1000</number>
+         </property>
+         <property name="singleStep">
+          <number>10</number>
          </property>
          <property name="value">
-          <number>1</number>
+          <number>10</number>
          </property>
         </widget>
        </item>

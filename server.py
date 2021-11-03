@@ -29,13 +29,17 @@ class User:
                 else:
                     book[i].append(Info_Armor(*j.get_info()))
 
-        return Info(self.lvl, self.y_char.name, self.y_char.stats,
+        return Info(self.lvl, self.y_char.name, self.y_char.max_hp, self.y_char.max_mp,
+                    self.y_char.max_hp, self.y_char.max_mp, self.y_char.stats,
                     list(map(str, self.y_char.abilities)),
-                    self.y_char.weapon.name, self.y_char.armor.name,
+                    Info_Weapon(*self.y_char.weapon.get_info()),
+                    Info_Armor(*self.y_char.armor.get_info()),
                     book, ability_book)
 
     def unpack_info(self, info):
         self.y_char.name = info.name
+        self.y_char.max_hp = info.max_hp
+        self.y_char.max_mp = info.max_mp
         self.y_char.stats = info.stats
         self.y_char.weapon = self.inventory["weapon"][list(map(
             str, self.inventory["weapon"])).index(info.weapon)]
@@ -94,7 +98,7 @@ class User:
 
 
 class Info_Weapon:
-    def __init__(self, name, rarity, base_damage, type_of, attack_effect):
+    def __init__(self, name: str, rarity, base_damage, type_of, attack_effect):
         self.name = name
         self.rarity = rarity
         self.base_damage = base_damage
@@ -102,7 +106,11 @@ class Info_Weapon:
         self.attack_effect = attack_effect
 
     def __str__(self):
-        return f'{self.name}'
+        return f"{self.name}"
+
+    def list_ref(self):
+        return [f'Weapon: {self.rarity.capitalize()} {self.name.capitalize()} {self.type_of, self.base_damage}',
+                f'                 {self.attack_effect}']
 
 
 class Info_Armor:
@@ -114,13 +122,25 @@ class Info_Armor:
         self.spell_defence = spell_defence
 
     def __str__(self):
-        return f'{self.name}'
+        return f"{self.name}"
+
+    def list_ref(self):
+        return [f'Armor: {self.rarity.capitalize()} {self.name.capitalize()}',
+                f'              def: {self.defence}, spell def:{self.spell_defence}',
+                '              ' + ', '.join([f'{j}: {i}' for j, i in
+                                              zip(["Str", "Agl", "Int", "Pyro", "Aqua", "Geo", "Aero", "Init"],
+                                                  self.stats)])]
 
 
 class Info:
-    def __init__(self, lvl, name, stats, abilities, weapon, armor, inventory, abilities_book, image=None):
+    def __init__(self, lvl, name, max_hp, max_mp, hp, mp, stats,
+                 abilities, weapon, armor, inventory, abilities_book, image=None):
         self.lvl = lvl
         self.name = name
+        self.max_hp = max_hp
+        self.max_mp = max_mp
+        self.hp = hp
+        self.mp = mp
         self.stats = stats
         self.abilities = abilities
         self.weapon = weapon
@@ -135,8 +155,13 @@ class Info:
 
         self.image = image
 
+    def list_ref(self):
+        return [*[f'{j}: {i}' for j, i in
+                  zip(["Str", "Agl", "Int", "Pyro", "Aqua", "Geo", "Aero", "Init"], self.stats)]]
+
     def __str__(self):
-        return f'{self.lvl, self.name, self.stats, self.abilities, self.weapon, self.armor},' \
+        return f'{self.lvl, self.name, self.max_hp, self.max_mp} ' \
+               f'{self.stats, self.abilities, self.weapon, self.armor} '\
                f'{self.inventory, self.abilities_book}'
 
 

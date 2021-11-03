@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>Battle</class>
+ <widget class="QMainWindow" name="Battle">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -93,55 +93,63 @@
          </widget>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QScrollArea" name="aero_area">
-            <property name="minimumSize">
-             <size>
-              <width>374</width>
-              <height>750</height>
-             </size>
-            </property>
-            <property name="layoutDirection">
-             <enum>Qt::LeftToRight</enum>
-            </property>
-            <property name="autoFillBackground">
-             <bool>false</bool>
-            </property>
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="frameShape">
-             <enum>QFrame::Box</enum>
-            </property>
-            <property name="frameShadow">
-             <enum>QFrame::Sunken</enum>
-            </property>
-            <property name="lineWidth">
-             <number>1</number>
-            </property>
-            <property name="midLineWidth">
-             <number>2</number>
-            </property>
-            <property name="verticalScrollBarPolicy">
-             <enum>Qt::ScrollBarAsNeeded</enum>
-            </property>
-            <property name="widgetResizable">
-             <bool>false</bool>
-            </property>
-            <widget class="QWidget" name="scrollAreaWidgetContents_2">
-             <property name="geometry">
-              <rect>
-               <x>0</x>
-               <y>0</y>
-               <width>366</width>
-               <height>742</height>
-              </rect>
-             </property>
-            </widget>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QScrollArea" name="aero_area">
+          <property name="minimumSize">
+           <size>
+            <width>374</width>
+            <height>750</height>
+           </size>
+          </property>
+          <property name="layoutDirection">
+           <enum>Qt::LeftToRight</enum>
+          </property>
+          <property name="autoFillBackground">
+           <bool>false</bool>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::Box</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Sunken</enum>
+          </property>
+          <property name="lineWidth">
+           <number>1</number>
+          </property>
+          <property name="midLineWidth">
+           <number>2</number>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QAbstractScrollArea::AdjustIgnored</enum>
+          </property>
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+          </property>
+          <widget class="QWidget" name="scrollAreaWidgetContents_2">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>366</width>
+             <height>744</height>
+            </rect>
+           </property>
+          </widget>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_3"/>
         </item>
        </layout>
       </item>
@@ -154,7 +162,7 @@
          <number>50</number>
         </property>
         <item>
-         <widget class="QListWidget" name="listWidget_3">
+         <widget class="QListWidget" name="Log">
           <property name="minimumSize">
            <size>
             <width>200</width>
@@ -170,6 +178,27 @@
          </widget>
         </item>
         <item>
+         <widget class="QLabel" name="label">
+          <property name="minimumSize">
+           <size>
+            <width>200</width>
+            <height>30</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>9</pointsize>
+           </font>
+          </property>
+          <property name="text">
+           <string>TextLabel</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
          <layout class="QGridLayout" name="gridLayout">
           <property name="horizontalSpacing">
            <number>10</number>
@@ -178,42 +207,42 @@
            <number>6</number>
           </property>
           <item row="0" column="1">
-           <widget class="QPushButton" name="pushButton_4">
+           <widget class="QPushButton" name="AbilityButton1">
             <property name="text">
              <string>PushButton</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QPushButton" name="pushButton_5">
+           <widget class="QPushButton" name="AbilityButton3">
             <property name="text">
              <string>PushButton</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QPushButton" name="pushButton_3">
+           <widget class="QPushButton" name="AbilityButton4">
             <property name="text">
              <string>PushButton</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QPushButton" name="pushButton_2">
+           <widget class="QPushButton" name="AbilityButton2">
             <property name="text">
              <string>PushButton</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QPushButton" name="pushButton">
+           <widget class="QPushButton" name="AttackButton">
             <property name="text">
              <string>PushButton</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QPushButton" name="pushButton_6">
+           <widget class="QPushButton" name="AbilityButton5">
             <property name="text">
              <string>PushButton</string>
             </property>
