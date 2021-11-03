@@ -1,5 +1,8 @@
 import socket
 import pickle
+import sys
+import base64
+from math import ceil
 from collections import defaultdict
 
 
@@ -36,6 +39,17 @@ def send_bytes(msg):
         raise SystemExit
 
 
+def send_image(image):
+    count = ceil(sys.getsizeof(image) / 2048)
+    send(str(count))
+
+    for i in range(count):
+        if i == count - 1:
+            send_bytes(image[2048 * i:])
+        else:
+            send_bytes(image[2048 * i:2048 * (i + 1)])
+
+
 def receive():
     try:
         while True:
@@ -58,6 +72,13 @@ def receive_bytes():
                 return msg
     except ConnectionError:
         raise SystemExit
+
+
+def receive_image():
+    book = b''
+    for i in range(int(receive())):
+        book += receive_bytes()
+    return book
 
 
 def create_character():

@@ -1,5 +1,6 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QLabel, QTableWidgetItem, QFileDialog
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import QByteArray
 from login_window import Ui_LoginWindow
 from main_window import Ui_MainWindow
 
@@ -31,7 +32,7 @@ class Info_Armor:
 
 
 class Info:
-    def __init__(self, lvl, name, stats, abilities, weapon, armor, inventory):
+    def __init__(self, lvl, name, stats, abilities, weapon, armor, inventory, abilities_book, image):
         self.lvl = lvl
         self.name = name
         self.stats = stats
@@ -40,8 +41,17 @@ class Info:
         self.armor = armor
         self.inventory = inventory
 
+        if abilities_book is not None:
+            self.abilities_book = abilities_book
+            for i in self.abilities_book.keys():
+                for j in self.abilities_book[i].keys():
+                    self.abilities_book[i][j] = list(map(str, self.abilities_book[i][j]))
+
+        self.image = image
+
     def __str__(self):
-        return f'{self.lvl, self.name, self.stats, self.abilities, self.weapon, self.armor, self.inventory}'
+        return f'{self.lvl, self.name, self.stats, self.abilities, self.weapon, self.armor},' \
+               f'{self.inventory, self.abilities_book}'
 
 
 class Login_screen(QMainWindow, Ui_LoginWindow):
@@ -63,7 +73,8 @@ class Login_screen(QMainWindow, Ui_LoginWindow):
         else:
             global info
             info = pickle.loads(receive_bytes())
-            main_screen()
+            info.image = receive_image()
+            show_main_widow(self)
 
     def login(self):
         send("!LOGIN")
@@ -75,12 +86,14 @@ class Login_screen(QMainWindow, Ui_LoginWindow):
         else:
             global info
             info = pickle.loads(receive_bytes())
-            main_screen()
+            info.image = receive_image()
+            show_main_widow(self)
 
 
 class Main_screen(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
+        self.pixmap = b''
         self.setupUi(self)
         self.setWindowTitle('Project-Creators')
 
@@ -99,7 +112,16 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         self.GeoValue.valueChanged.connect(self.change_stat)
         self.AeroValue.valueChanged.connect(self.change_stat)
 
-        self.SavePoints.clicked.connect(self.save_point)
+        self.Save.clicked.connect(self.save_point)
+
+        self.SkillTree.currentItemChanged.connect(self.current_ability)
+        self.Set1.clicked.connect(self.set_ability)
+        self.Set2.clicked.connect(self.set_ability)
+        self.Set3.clicked.connect(self.set_ability)
+        self.Set4.clicked.connect(self.set_ability)
+        self.Set5.clicked.connect(self.set_ability)
+
+        self.LoadImg.clicked.connect(self.load_avatar)
 
     def create_room(self):
         send("!CREATE_ROOM")
@@ -115,6 +137,7 @@ class Main_screen(QMainWindow, Ui_MainWindow):
 
     def update_info(self):
         global info
+        self.pixmap = base64.decodebytes(info.image)
         self.Name.setText(info.name)
         self.Lvl.setText(f'lvl {info.lvl}')
 
@@ -137,6 +160,22 @@ class Main_screen(QMainWindow, Ui_MainWindow):
 
         for j, i in enumerate(info.abilities):
             self.findChild(QLabel, f"Ability{j + 1}").setText(str(i))
+
+        self.SkillTree.clear()
+        if info.abilities_book is not None:
+            self.SkillTree.setColumnCount(len(info.abilities_book.keys()))
+            self.SkillTree.setHorizontalHeaderLabels(map(lambda x: x.capitalize(), info.abilities_book.keys()))
+
+            self.SkillTree.setRowCount(info.lvl)
+
+            for j, i in enumerate(info.abilities_book.keys()):
+                for g in info.abilities_book[i].keys():
+                    for h in info.abilities_book[i][g]:
+                        self.SkillTree.setItem(g - 1, j, QTableWidgetItem(h))
+
+        pix = QPixmap()
+        pix.loadFromData(QByteArray(bytearray(self.pixmap)))
+        self.Avatar.setPixmap(pix)
 
     def update_weapon(self):
         global info
@@ -188,9 +227,35 @@ class Main_screen(QMainWindow, Ui_MainWindow):
 
         info.weapon = self.WeaponBox.currentText()
         info.armor = self.ArmorBox.currentText()
+        info.image = None
 
         send("!SAVE_POINT")
         send_bytes(pickle.dumps(info, 3))
+        send_image(base64.encodebytes(self.pixmap))
+
+    def current_ability(self):
+        item = self.SkillTree.currentItem()
+        if item is not None:
+            return item.text()
+
+    def set_ability(self):
+        text = self.current_ability()
+        if text not in info.abilities:
+            index = int(self.sender().text()[-1])
+            if len(info.abilities) < index:
+                info.abilities.append(text)
+                self.findChild(QLabel, f'Ability{len(info.abilities)}').setText(text)
+            else:
+                info.abilities[index - 1] = text
+                self.findChild(QLabel, f'Ability{index}').setText(text)
+
+    def load_avatar(self):
+        self.pixmap = QFileDialog.getOpenFileName(self, 'Choose image',
+                                                  '', 'Image (*.jpg);;Image (*.png)')[0]
+        self.Avatar.setPixmap(QPixmap(self.pixmap))
+
+        with open(self.pixmap, 'rb') as file:
+            self.pixmap = file.read()
 
 
 def handle_game():
@@ -206,23 +271,21 @@ def handle_game():
             print(receivation)
 
 
-def main_screen():
-    widget.setCurrentIndex(1)
-    widget.setMinimumSize(800, 600)
-    widget.widget(1).update_info()
+def show_main_widow(this):
+    this.hide()
+    main_window.update_info()
+    main_window.show()
 
 
 if __name__ == '__main__':
     info = Info(1, '', [0, 0, 0, 0, 0, 0, 0, 0], [],
                 Info_Weapon('', '', 0, '', None),
-                Info_Armor('', '', [0, 0, 0, 0, 0, 0, 0, 0], 0, 0), None)
+                Info_Armor('', '', [0, 0, 0, 0, 0, 0, 0, 0], 0, 0), None, None, b'')
     try:
         app = QApplication(sys.argv)
-        widget = QStackedWidget()
-        widget.addWidget(Login_screen())
-        widget.addWidget(Main_screen())
-        widget.setWindowTitle("Project-Creators")
-        widget.show()
+        login_window = Login_screen()
+        main_window = Main_screen()
+        login_window.show()
         sys.exit(app.exec_())
     except SystemExit:
         send("!DISCONNECT")

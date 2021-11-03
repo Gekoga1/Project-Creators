@@ -1,5 +1,4 @@
 import time
-
 from game_lib import *
 
 
@@ -13,6 +12,7 @@ class User:
         self.y_char = y_char
         self.lvl = lvl
         self.inventory = defaultdict(list)
+        self.image = b''
 
     def __str__(self):
         return f'{self.name}'
@@ -31,7 +31,8 @@ class User:
 
         return Info(self.lvl, self.y_char.name, self.y_char.stats,
                     list(map(str, self.y_char.abilities)),
-                    self.y_char.weapon.name, self.y_char.armor.name, book)
+                    self.y_char.weapon.name, self.y_char.armor.name,
+                    book, ability_book)
 
     def unpack_info(self, info):
         self.y_char.name = info.name
@@ -40,6 +41,8 @@ class User:
             str, self.inventory["weapon"])).index(info.weapon)]
         self.y_char.armor = self.inventory["armor"][list(map(
             str, self.inventory["armor"])).index(info.armor)]
+        self.unpack_abilities(info)
+        self.image = info.image
 
     def unpack_inventory(self):
         book = []
@@ -54,12 +57,39 @@ class User:
                                                         WHERE ArmorId = ?""", (i,))[0][0]))
         self.inventory["armor"] = book
 
+    def unpack_abilities(self, info):
+        book = []
+        for i in info.abilities:
+            sql = sqlite_request("""SELECT Lvl, Pickle FROM Ability
+                                    WHERE Name = ?""", (i,))[0]
+            if sql[0] > self.lvl:
+                self.conn.close()
+                raise SystemExit
+            else:
+                book.append(pickle.loads(sql[1]))
+        self.y_char.abilities = book
+
+    def unpack_image(self, image):
+        self.image = sqlite_request("""SELECT Pickle FROM Image
+                                        WHERE ImageId = ?""", (image,))[0][0]
+
     def update_db(self):
         owner = self.y_char.owner
         self.y_char.owner = None
         sqlite_update("""UPDATE Character
-                        SET Pickle = ?
-                        WHERE CharacterId = ?""", (pickle.dumps(self.y_char, 3), self.y_id))
+                        SET Name = ?, Pickle = ?
+                        WHERE CharacterId = ?""", (self.y_char.name, pickle.dumps(self.y_char, 3), self.y_id))
+        try:
+            sqlite_update("""INSERT INTO Image(Pickle)
+                            VALUES(?)""", (self.image,))
+        except sqlite3.IntegrityError:
+            pass
+
+        sqlite_update("""UPDATE Account
+                        SET ImageId = (
+                        SELECT ImageId FROM Image
+                        WHERE Pickle = ?)
+                        WHERE id = ?""", (self.image, self.y_id))
         self.y_char.owner = owner
 
 
@@ -88,7 +118,7 @@ class Info_Armor:
 
 
 class Info:
-    def __init__(self, lvl, name, stats, abilities, weapon, armor, inventory):
+    def __init__(self, lvl, name, stats, abilities, weapon, armor, inventory, abilities_book, image=None):
         self.lvl = lvl
         self.name = name
         self.stats = stats
@@ -97,13 +127,24 @@ class Info:
         self.armor = armor
         self.inventory = inventory
 
+        if abilities_book is not None:
+            self.abilities_book = abilities_book
+            for i in self.abilities_book.keys():
+                for j in self.abilities_book[i].keys():
+                    self.abilities_book[i][j] = list(map(str, self.abilities_book[i][j]))
+
+        self.image = image
+
     def __str__(self):
-        return f'{self.lvl, self.name, self.stats, self.abilities, self.weapon, self.armor, self.inventory}'
+        return f'{self.lvl, self.name, self.stats, self.abilities, self.weapon, self.armor},' \
+               f'{self.inventory, self.abilities_book}'
 
 
 def handle_client(user):
     print(f"[NEW CONNECTION] {user.addr} connected.")
     print(f"threads {threading.active_count()}")
+    for thread in threading.enumerate():
+        print(thread.name)
 
     connected = True
     if user.y_char is None or user.y_id is None:
@@ -111,29 +152,41 @@ def handle_client(user):
     else:
         logined = True
 
+    timer = time.time()
+
     while connected:
+        if time.time() - timer >= 5:
+            connected = False
+
         msg = receive(user)
         if msg == "!DISCONNECT":
             connected = False
             logined = False
 
         elif msg == "!REGISTRATION" and not logined:
-            info = registration(user)
+            timer = time.time()
+            info = registration(user, uid)
             if info:
+                uid.append(info[0])
                 user.y_id, user.y_char = info[0], pickle.loads(info[1])
                 user.y_char.owner = user
                 user.unpack_inventory()
-                print(user.inventory)
+                user.unpack_image(1)
                 send_bytes(pickle.dumps(user.get_info(), 3), user)
+                send_image(user.image, user)
                 logined = True
 
         elif msg == "!LOGIN" and not logined:
+            timer = time.time()
             info = login(user)
             if info:
                 user.y_id, user.y_char = info[0], pickle.loads(info[1])
                 user.y_char.owner = user
                 user.unpack_inventory()
+                user.unpack_image(sqlite_request("""SELECT ImageId FROM Account
+                                                    WHERE id = ?""", (user.y_id,))[0][0])
                 send_bytes(pickle.dumps(user.get_info(), 3), user)
+                send_image(user.image, user)
                 logined = True
 
         elif msg == "!CREATE_ROOM" and logined:
@@ -141,6 +194,7 @@ def handle_client(user):
             break
 
         elif msg == "!CONNECT_ROOM" and logined:
+            timer = time.time()
             room_addr = connect_room(user)
             if room_addr is not None:
                 send("!True", user)
@@ -157,7 +211,9 @@ def handle_client(user):
                 send('There are no open rooms.', user)
 
         elif msg == "!SAVE_POINT":
+            timer = time.time()
             user.unpack_info(pickle.loads(receive_bytes(user)))
+            user.image = receive_image(user)
             user.update_db()
 
     if not connected:
@@ -205,14 +261,24 @@ def handle_room(number):
 def start():
     server.listen()
     print(f"[LISTENING] Server is listening on {SERVER}")
+    thread = threading.Thread(target=cmd_control)
+    thread.start()
     while True:
         conn, addr = server.accept()
         thread = threading.Thread(target=handle_client, args=(User(conn, addr, None, None, None, None, 1),))
         thread.start()
 
 
+def cmd_control():
+    while True:
+        try:
+            exec(input())
+        except Exception as ex:
+            print(ex)
+
+
 if __name__ == '__main__':
     print("[STARTING] server is starting...")
     uid = list(map(lambda qz: qz[0], sqlite_request("""SELECT id FROM Account""", ())))
-    active = defaultdict(list)
+    ability_book = update_abilities()
     start()

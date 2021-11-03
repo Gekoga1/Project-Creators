@@ -1,10 +1,13 @@
 import socket
 import sqlite3
+import sys
 import threading
 import time
 from random import randint
 import pickle
 from collections import defaultdict
+from math import ceil
+import base64
 
 
 HEADER = 64
@@ -12,7 +15,6 @@ PORT = 41480
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
-uid = []
 rooms = []
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -105,6 +107,17 @@ def send_bytes(msg, user):
             raise SystemExit
 
 
+def send_image(image, user):
+    count = ceil(sys.getsizeof(image) / 2048)
+    send(str(count), user)
+
+    for i in range(count):
+        if i == count - 1:
+            send_bytes(image[2048 * i:], user)
+        else:
+            send_bytes(image[2048 * i:2048 * (i + 1)], user)
+
+
 def receive(user):
     try:
         msg_length = user.conn.recv(HEADER).decode(FORMAT)
@@ -148,6 +161,13 @@ def receive_bytes(user):
             raise SystemExit
 
 
+def receive_image(user):
+    book = b''
+    for i in range(int(receive(user))):
+        book += receive_bytes(user)
+    return book
+
+
 def target_input(msg, user):
     send("!INPUT", user)
     if msg is not None:
@@ -157,7 +177,7 @@ def target_input(msg, user):
     return receive(user)
 
 
-def registration(user):
+def registration(user, uid):
     msg = receive(user)
     msg = msg.split(';')
 
@@ -174,9 +194,9 @@ def registration(user):
             if new_uid not in uid:
                 break
 
-        sqlite_update("""INSERT INTO Account(id, name, password, lvl, Weapons, Armors)
-                        VALUES(?, ?, ?, 1, ?, ?)""", (new_uid, msg[0], msg[1],
-                                                      pickle.dumps([1, 2, 3], 3), pickle.dumps([2, 3], 3)))
+        sqlite_update("""INSERT INTO Account(id, name, password, lvl, Weapons, Armors, ImageId)
+                        VALUES(?, ?, ?, 1, ?, ?, 1)""", (new_uid, msg[0], msg[1],
+                                                         pickle.dumps([1, 2, 3], 3), pickle.dumps([2, 3], 3)))
 
         user.y_id = new_uid
         user.name = msg[0]
@@ -184,7 +204,6 @@ def registration(user):
         user.inventory["weapon"] = [1, 2, 3]
         user.inventory["armor"] = [2, 3]
 
-        uid.append(new_uid)
         send(str(new_uid), user)
 
         return create_character(user)
@@ -224,6 +243,8 @@ def login(user):
         except IndexError:
 
             user.y_id = y_id
+            user.inventory["weapon"] = [1, 2, 3]
+            user.inventory["armor"] = [2, 3]
 
             return create_character(user)
 
@@ -235,8 +256,8 @@ def login(user):
 def create_character(user):
     y_char = pickle.dumps(Character(str(user.y_id), 20, 20, 10, 10, [1, 1, 1, 1, 1, 1, 1, 1], None, None, []))
 
-    sqlite_update("""INSERT INTO Character(CharacterId, Pickle)
-                    VALUES(?, ?)""", (user.y_id, y_char))
+    sqlite_update("""INSERT INTO Character(CharacterId, Name, Pickle)
+                    VALUES(?, ?, ?)""", (user.y_id, user.y_id, y_char))
     sqlite_update("""UPDATE Account
                     SET CharacterId = ?
                     WHERE id = ?""", (user.y_id, user.y_id))
@@ -276,6 +297,16 @@ def send_room(msg, room):
 
     for i in for_remove:
         room.remove(i)
+
+
+def update_abilities():
+    abilities = {"physical": defaultdict(list), "pyro": defaultdict(list), "aqua": defaultdict(list),
+                 "geo": defaultdict(list), "aero": defaultdict(list)}
+    for i in abilities.keys():
+        for j in sqlite_request("""SELECT Lvl, Pickle FROM Ability
+                                    WHERE Type = ?""", (i,)):
+            abilities[i][j[0]].append(pickle.loads(j[1]))
+    return abilities
 
 
 def clamp(value: float, maximum: float, minimal: float) -> float:
@@ -654,9 +685,11 @@ class Weapon(Gear):
 
 
 class Ability:
-    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None, owner=None):
+    def __init__(self, type_of: str, mp_use: float, cd: int, number_of_choose: int, match=None, owner=None):
         self.match = match
         self.owner = owner
+
+        self.type_of = type_of.lower()
 
         self.mp_use = mp_use
 
@@ -692,8 +725,8 @@ class Ability:
 
 
 class PoisonTouch(Ability):
-    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None):
-        super().__init__(mp_use, cd, number_of_choose, match)
+    def __init__(self, type_of: str, mp_use: float, cd: int, number_of_choose: int, match=None):
+        super().__init__(type_of, mp_use, cd, number_of_choose, match)
 
     def __str__(self):
         return 'Ядовитое касание'
@@ -719,8 +752,8 @@ class PoisonTouch(Ability):
 
 
 class Purify(Ability):
-    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None):
-        super().__init__(mp_use, cd, number_of_choose, match)
+    def __init__(self, type_of: str, mp_use: float, cd: int, number_of_choose: int, match=None):
+        super().__init__(type_of, mp_use, cd, number_of_choose, match)
 
     def __str__(self):
         return 'Очищение'
@@ -733,7 +766,7 @@ class Purify(Ability):
         if self.now_cd == 0 and user.use_mp(self.mp_use):
             send_room(f'{user} очистился от {", ".join(map(str, user.state))}', self.match.room)
             user.state = []
-            self.now_cd = self.cd
+            self.now_cd = self.cd - ceil(user.strength / 10)
 
             return True
         else:
@@ -741,8 +774,8 @@ class Purify(Ability):
 
 
 class Splash(Ability):
-    def __init__(self, mp_use: float, cd: int, number_of_choose: int, match=None):
-        super().__init__(mp_use, cd, number_of_choose, match)
+    def __init__(self, type_of: str, mp_use: float, cd: int, number_of_choose: int, match=None):
+        super().__init__(type_of, mp_use, cd, number_of_choose, match)
 
     def __str__(self):
         return 'Рассекающий удар'
@@ -845,12 +878,12 @@ class Game:
 a = (Character, 'Anthem', 120, 120, 15, 15, [7, 5, 2, 0, 0, 0, 0, 4],
      Weapon('Sword with troll', 'legendary', 10000000 ** 0, type_of='melee'),
      Armor('ANTI MAGICK VEIL', 'epic', [5, 2, 1, 0, 0, 0, 0, 1], 5, 20),
-     [(Purify, 0, 4, 0)])
+     [(Purify, "physical", 0, 4, 0)])
 
 b = (Character, 'Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
      Weapon('Spiky Tooth', 'uncommon', 3, type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
      Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6),
-     [(PoisonTouch, 15, 0, 2), (Splash, 5, 2, 1)])
+     [(PoisonTouch, "geo", 15, 0, 2), (Splash, "physical", 5, 2, 1)])
 
 a = a[0](*a[1:])
 b = b[0](*b[1:])

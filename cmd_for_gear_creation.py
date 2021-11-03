@@ -1,16 +1,30 @@
 from game_lib import *
 from server import *
+import base64
 
 
-item = Armor("Vanguard Shoulders", "uncommon", [2, 1, 0, 1, 0, 0, 0, 0], 8, 2)
-sqlite_update("""INSERT INTO Armor(Pickle, Name, Rarity)
-                VALUES(?, ?, ?)""", (pickle.dumps(item, 3), item.name, item.rarity))
+'''item = Purify("physical", 5, 7, 0)'''
+'''with open("C:/Users/Gekoga/Downloads/1200px-Wiktor_Michajlowitsch_Wassnezow_003.jpg", "rb") as file:
+    file = file.read()
 
-'''item = sqlite_request("""SELECT Pickle FROM Armor
-                        WHERE Name = ?""", ("Leather suit",))[0][0]
+    encoded = base64.encodebytes(file)
+    sqlite_update("""INSERT INTO Image(Pickle)
+                    VALUES(?)""", (encoded,))
 
-item = pickle.loads(item)
+with open("output.jpg", "wb") as file2:
+    encoded = sqlite_request("""SELECT Pickle FROM Image
+                                WHERE ImageId = ?""", (2,))[0][0]
+    encoded = base64.decodebytes(encoded)
+    file2.write(encoded)
+    file2.close()'''
+
+index = sqlite_request("""SELECT Pickle FROM Image
+                            WHERE ImageId = ?""", (2,))[0][0]
+
+sqlite_update("""""", (index, 904222744))
+
+'''item = pickle.loads(item)
 item.rarity = "epic"
-sqlite_update("""UPDATE Armor
+sqlite_update("""UPDATE Ability
                 SET Pickle = ?
-                WHERE Name = ?""", (pickle.dumps(item), "Leather suit"))'''
+                WHERE Name = ?""", (pickle.dumps(item), str(item)))'''
