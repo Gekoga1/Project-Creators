@@ -230,6 +230,7 @@ def handle_client(user):
                 else:
                     break
             else:
+                print("NO ROOM")
                 send("!False", user)
                 send("There are no open rooms", user)
 

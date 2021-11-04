@@ -284,9 +284,8 @@ def connect_room(user):
         if len(rooms[i]) < 1:
             rooms.remove(i)
         if not rooms[i].is_ready():
-            if rooms[i].value != len(rooms[i]) + 1:
-                send_room("!NEW_PLAYER", rooms[i])
-                send_room(str(len(rooms[i]) + 1), rooms[i])
+            send_room("!NEW_PLAYER", rooms[i])
+            send_room(str(len(rooms[i]) + 1), rooms[i])
             rooms[i].add_member(user)
             send("!True", user)
             send_bytes(pickle.dumps([len(rooms[i]), rooms[i].value], 3), user)

@@ -163,6 +163,7 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         if answer == "!True":
             show_waiting_widow(self)
         elif answer == "!False":
+            print("!FALSE")
             self.ErrorLable.setText(receive())
 
     def update_info(self):
@@ -318,11 +319,13 @@ class UpdateThread(QObject):
 
     # noinspection PyUnresolvedReferences
     def run(self):
-        rec = receive()
-        if rec == "!NEW_PLAYER":
-            self.new_data.emit(int(receive()))
-        elif rec == "!START":
-            self.game_start.emit()
+        while True:
+            rec = receive()
+            if rec == "!NEW_PLAYER":
+                self.new_data.emit(int(receive()))
+            elif rec == "!START":
+                self.game_start.emit()
+                break
 
 
 class Waiting_screen(QMainWindow, Ui_Waiting):
@@ -335,6 +338,7 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
 
     # noinspection PyUnresolvedReferences
     def update_info(self, players, value):
+        print(players, value)
         self.Players.setText(f"{players}/{value}")
         self.progressBar.setMaximum(value)
         self.progressBar.setValue(players)
@@ -347,7 +351,7 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
 
     def update_value(self, data):
         value = int(self.Players.text().split('/')[1])
-        self.Players.setText(f"{value}/{data}")
+        self.Players.setText(f"{data}/{value}")
         self.progressBar.setValue(data)
 
     def start(self):
