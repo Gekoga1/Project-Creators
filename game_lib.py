@@ -84,6 +84,8 @@ def send(msg, user):
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)    # msg with length of next msg
         user.conn.send(message)
+        while not user.conn.recv(48).decode(FORMAT) == "!True":
+            pass
     except ConnectionError or OSError:
         try:
             user.conn.close()
@@ -99,6 +101,8 @@ def send_bytes(msg, user):
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)  # msg with length of next msg
         user.conn.send(msg)
+        while not user.conn.recv(48).decode(FORMAT) == "!True":
+            pass
     except ConnectionError or OSError:
         try:
             user.conn.close()
@@ -131,6 +135,7 @@ def receive(user):
             if msg == "!DISCONNECT":
                 user.conn.close()
                 raise SystemExit
+            user.conn.send("!True".encode(FORMAT))
             return msg
     except ConnectionError or OSError:
         try:
@@ -152,6 +157,7 @@ def receive_bytes(user):
             if msg == "!DISCONNECT":
                 user.conn.close()
                 raise SystemExit
+            user.conn.send("!True".encode(FORMAT))
             return msg
     except ConnectionError or OSError:
         try:
@@ -170,10 +176,7 @@ def receive_image(user):
 
 def target_input(msg, user):
     send("!INPUT", user)
-    if msg is not None:
-        send(msg, user)
-    else:
-        send('', user)
+    time.sleep(1)
     return receive(user)
 
 
@@ -269,19 +272,24 @@ def create_character(user):
 
 def create_room(user, value):
     for i in range(len(rooms)):
-        if len(rooms[i]) == 0:
-            rooms[i].set_value(value)
-            rooms[i].add_member(user)
-            return i
+        if len(rooms[i]) < 1:
+            rooms.remove(i)
     rooms.append(Room(value, [user]))
+    send_bytes(pickle.dumps([1, value], 3), user)
     return len(rooms) - 1
 
 
 def connect_room(user):
     for i in range(len(rooms)):
+        if len(rooms[i]) < 1:
+            rooms.remove(i)
         if not rooms[i].is_ready():
-            send_room("New player joined", rooms[i])
+            if rooms[i].value != len(rooms[i]) + 1:
+                send_room("!NEW_PLAYER", rooms[i])
+                send_room(str(len(rooms[i]) + 1), rooms[i])
             rooms[i].add_member(user)
+            send("!True", user)
+            send_bytes(pickle.dumps([len(rooms[i]), rooms[i].value], 3), user)
             return i
     return None
 
@@ -297,6 +305,34 @@ def send_room(msg, room):
 
     for i in for_remove:
         room.remove(i)
+
+
+def get_room_info(room):
+    book = defaultdict(list)
+    book["aero"] = []
+    book["geo"] = []
+    for j, i in enumerate(room.members):
+        if (j + 1) % 2 == 0:
+            info = i.get_info()
+            info.image = i.image
+            book["geo"].append(info)
+        else:
+            info = i.get_info()
+            info.image = i.image
+            book["aero"].append(info)
+    return book
+
+
+def send_room_info(room, user):
+    book = get_room_info(room)
+    for i in book.keys():
+        send(str(len(book[i])), user)
+        for j in book[i]:
+            img = j.image
+            j.image = None
+            send_bytes(pickle.dumps(j), user)
+            send_image(img,  user)
+    return True
 
 
 def update_abilities():
@@ -367,16 +403,14 @@ class Character:
 
     def update_stats(self):
         stats = [i + j for i, j in zip(self.stats, self.armor.stats)]
-        self.strength, self.agility, self.intellect = stats[0], stats[1], stats[2]
-        self.pyro, self.aqua, self.geo, self.aero = stats[3], stats[4], stats[5], stats[6]
-        self.initiation = stats[7]
+        self.strength, self.agility, self.intellect, self.initiation = stats[0], stats[1], stats[2], stats[3]
+        self.pyro, self.aqua, self.geo, self.aero = stats[4], stats[5], stats[6], stats[7]
         self.defence = self.armor.defence
         self.spell_defence = self.armor.spell_defence
 
     def get_stats(self):
-        return [self.strength, self.agility, self.intellect,
-                self.pyro, self.aqua, self.geo, self.aero,
-                self.initiation]
+        return [self.strength, self.agility, self.intellect, self.initiation,
+                self.pyro, self.aqua, self.geo, self.aero]
 
     def get_info(self):
         return f'hp: {self.hp}/{self.max_hp}\n' \
@@ -390,7 +424,7 @@ class Character:
         self.hp = clamp(self.hp, self.max_hp, 0)
         if self.hp == 0:
             self.alive = False
-            send_room('Death', self.match.room)
+            self.match.send_room(f'{self.name.capitalize()} is dead')
 
     def mp_check(self) -> None:
         self.mp = clamp(self.mp, self.max_mp, 0)
@@ -415,68 +449,67 @@ class Character:
         if self.alive:
             if type_of == 'true':
                 self.hp -= damage
-                send_room(f'{self} получает {damage} чистого урона от {str(sender)} и остается с {self.hp}',
-                          self.match.room)
+                self.match.send_room(f'{self} получает {damage}'
+                                     f' чистого урона от {str(sender)} и остается с {self.hp}')
                 self.hp_check()
                 return True
             elif type_of == 'physical':
                 if self.defence > damage:
-                    send_room(f'{self} получает {damage} физического урона от {str(sender)} и теряет {damage} брони',
-                              self.match.room)
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f' физического урона от {str(sender)} и теряет {damage} брони')
                     self.defence -= damage
                     return False
                 elif self.defence == damage:
                     self.defence = 0
-                    send_room(f'{self} получает {damage} физического урона от {str(sender)} и теряет ВСЮ БРОНЮ',
-                              self.match.room)
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f' физического урона от {str(sender)} и теряет ВСЮ БРОНЮ')
                     return False
                 elif self.defence == 0:
                     self.hp -= damage
-                    send_room(f'{self} получает {damage} физического урона от {str(sender)} и остается с {self.hp}',
-                              self.match.room)
-                    self.hp_check()
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f' физического урона от {str(sender)} и остается с {self.hp}')
                     return True
                 elif self.defence < damage:
-                    send_room(f'{self} получает {damage} физического урона от '
-                              f'{str(sender)} и теряет ВСЮ БРОНЮ', self.match.room)
+                    self.match.send_room(f'{self} получает {damage} физического урона от '
+                                         f'{str(sender)} и теряет ВСЮ БРОНЮ')
                     self.defence -= damage
 
                     damage = -self.defence
                     self.defence = 0
                     self.hp -= damage
 
-                    send_room(f'{self} получает {damage} физического урона от {str(sender)} и остается с {self.hp}',
-                              self.match.room)
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f'физического урона от {str(sender)} и остается с {self.hp}')
                     self.hp_check()
                     return True
             elif type_of == 'special':
                 if self.spell_defence > damage:
-                    send_room(f'{self} получает {damage} особого урона от {str(sender)} '
-                              f'и теряет {damage} магической защиты', self.match.room)
+                    self.match.send_room(f'{self} получает {damage} особого урона от {str(sender)} '
+                                         f'и теряет {damage} магической защиты')
                     self.spell_defence -= damage
                     return False
                 elif self.spell_defence == damage:
                     self.spell_defence = 0
-                    send_room(f'{self} получает {damage} особого урона от {str(sender)} '
-                              f'и теряет ВСЮ магическую ЗАЩИТУ', self.match.room)
+                    self.match.send_room(f'{self} получает {damage} особого урона от {str(sender)} '
+                                         f'и теряет ВСЮ магическую ЗАЩИТУ')
                     return False
                 elif self.spell_defence == 0:
                     self.hp -= damage
-                    send_room(f'{self} получает {damage} особого урона от {str(sender)} и остается с {self.hp}',
-                              self.match.room)
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f' особого урона от {str(sender)} и остается с {self.hp}')
                     self.hp_check()
                     return True
                 elif self.spell_defence < damage:
-                    send_room(f'{self} получает {damage} особого урона от '
-                              f'{str(sender)} и теряет ВСЮ магическую ЗАЩИТУ', self.match.room)
+                    self.match.send_room(f'{self} получает {damage} особого урона от '
+                                         f'{str(sender)} и теряет ВСЮ магическую ЗАЩИТУ')
 
                     self.spell_defence -= damage
                     damage = -self.spell_defence
                     self.spell_defence = 0
 
                     self.hp -= damage
-                    send_room(f'{self} получает {damage} особого урона от {str(sender)} и остается с {self.hp}',
-                              self.match.room)
+                    self.match.send_room(f'{self} получает {damage}'
+                                         f' особого урона от {str(sender)} и остается с {self.hp}')
                     self.hp_check()
                     return True
 
@@ -491,11 +524,11 @@ class Character:
             effect = attack_effect[0](*attack_effect[1:])
             if attack_effect[0] not in state_classes:
                 self.state.append(effect)
-                send_room(f'{self} получает эффект {effect}', self.match.room)
+                self.match.send_room(f'{self} получает эффект {effect}')
             else:
                 index = state_classes.index(attack_effect[0])
                 if self.state[index] + effect:
-                    send_room(f'{self} получает эффект {effect}', self.match.room)
+                    self.match.send_room(f'{self} получает эффект {effect}')
                     self.state[index] = effect
 
     def proc_states(self, tik):
@@ -534,55 +567,54 @@ class Character:
         if self.alive:
             action = target_input('Actions: attack/ability/info\n', self.owner).lower()
             if action == 'attack':
-                send(' '.join([f'{j + 1}: {i.name}'
-                               for j, i in enumerate(self.match.geo_team)]), self.owner)
-                send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                               for j, i in enumerate(self.match.aero_team)]), self.owner)
                 try:
                     choose = int(target_input('choose target ', self.owner)) - 1
                     self.attack(self.match.characters[choose])
                 except IndexError:
+                    send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
                 except ValueError:
+                    send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
 
             elif action == 'ability':
                 if len(self.abilities) > 0:
-                    for j, i in enumerate(self.abilities):
-                        send(f'{j + 1}: {i.full_str()}', self.owner)
                     try:
                         choose = int(target_input(None, self.owner)) - 1
 
                         if not self.abilities[choose].usage(self, self.match):
+                            send("!ERROR", self.owner)
                             send("You can't do that", self.owner)
                             self.make_action()
                     except IndexError:
+                        send("!ERROR", self.owner)
                         send('Error action', self.owner)
                         self.make_action()
                     except ValueError:
+                        send("!ERROR", self.owner)
                         send('Error action', self.owner)
                         self.make_action()
                 else:
+                    send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
             elif action == 'info':
-                send(' '.join([f'{j + 1}: {i.name}'
-                               for j, i in enumerate(self.match.geo_team)]), self.owner)
-                send(' '.join([f'{j + self.match.geo_len + 1}: {i.name}'
-                               for j, i in enumerate(self.match.aero_team)]), self.owner)
                 try:
                     choose = int(target_input('choose target ', self.owner)) - 1
-                    send_room(self.match.characters[choose].get_info(), self.match.room)
+                    self.match.send_room(self.match.characters[choose].get_info())
                     self.make_action()
                 except IndexError:
+                    send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
                 except ValueError:
+                    send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
             else:
+                send("!ERROR", self.owner)
                 send('Error action', self.owner)
                 self.make_action()
 
@@ -619,7 +651,7 @@ class Poisoned(Effect):
                 self.duration = other.duration
                 self.max_stacks = other.max_stacks
                 if self.stacks < self.max_stacks:
-                    send_room(f'{self} усиливается на {other.stacks}', self.match.room)
+                    self.match.send_room(f'{self} усиливается на {other.stacks}')
                     self.stacks += other.stacks
                     return False  # without replacement
             elif other == self or other > self:
@@ -708,16 +740,14 @@ class Ability:
     def choose(self, match):
         try:
             book = []
-            send(' '.join([f'{j + 1}: {i.name}'
-                           for j, i in enumerate(match.geo_team)]), self.owner)
-            send(' '.join([f'{j + match.geo_len + 1}: {i.name}'
-                           for j, i in enumerate(match.aero_team)]), self.owner)
             for i in range(self.number_of_choose):
                 book.append(int(target_input(f'target №{i} - ', self.owner)) - 1)
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
+            send("!ERROR", self.owner)
             send('Wrong Index', self.owner)
         except ValueError:
+            send("!ERROR", self.owner)
             send('Input Only integer numbers', self.owner)
 
     def usage(self, user, match):
@@ -821,6 +851,7 @@ class Splash(Ability):
 
 class Game:
     def __init__(self, geo_team, aero_team, room):
+        self.log = []
         self.room = room
         self.geo_team = geo_team
         self.aero_team = aero_team
@@ -828,17 +859,24 @@ class Game:
         self.aero_len = len(self.aero_team)
         self.characters = self.geo_team + self.aero_team
 
+    def send_room(self, msg):
+        self.log.append(msg)
+        send_room("!LOG", self.room)
+        for i in self.room.members:
+            send_bytes(pickle.dumps(self.log, 3), i)
+        time.sleep(1)
+
     def check_teams_alive(self):
         geo = (not len(list(filter(lambda z: z.alive, self.geo_team))) > 0)
         aero = (not len(list(filter(lambda z: z.alive, self.aero_team))) > 0)
         if geo and aero:
-            send_room('both teams are dead', self.room)
+            self.send_room('both teams are dead')
             return False
         elif geo:
-            send_room('geo team are dead', self.room)
+            self.send_room('geo team are dead')
             return False
         elif aero:
-            send_room('aero team are dead', self.room)
+            self.send_room('aero team are dead')
             return False
         else:
             return True
@@ -870,7 +908,7 @@ class Game:
                 character.get_mp(character.intellect)
             self.round_start()
             for character in sorted(self.characters, key=lambda z: z.initiation, reverse=True):
-                send_room(f'{character} совершает действие', self.room)
+                self.send_room(f'{character} совершает действие')
                 character.make_action()
             self.round_end()
 

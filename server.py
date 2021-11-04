@@ -1,3 +1,4 @@
+import pickle
 import time
 from game_lib import *
 
@@ -168,8 +169,8 @@ class Info:
 def handle_client(user):
     print(f"[NEW CONNECTION] {user.addr} connected.")
     print(f"threads {threading.active_count()}")
-    for thread in threading.enumerate():
-        print(thread.name)
+    #for thread in threading.enumerate():
+    #    print(thread.name)
 
     connected = True
     if user.y_char is None or user.y_id is None:
@@ -222,18 +223,15 @@ def handle_client(user):
             timer = time.time()
             room_addr = connect_room(user)
             if room_addr is not None:
-                send("!True", user)
-                send('Room found.', user)
                 if rooms[room_addr].is_ready():
                     thread = threading.Thread(target=handle_room, args=(room_addr,))
                     thread.start()
                     break
                 else:
-                    send('Waiting other players.', user)
                     break
             else:
                 send("!False", user)
-                send('There are no open rooms.', user)
+                send("There are no open rooms", user)
 
         elif msg == "!SAVE_POINT":
             timer = time.time()
@@ -249,14 +247,16 @@ def handle_room(number):
     try:
         print(f"threads {threading.active_count()}")
         print(f"[ROOM {number}] ready.")
+        send_room("!START",  rooms[number])
 
-        send_room('Duel starts', rooms[number])
+        for i in rooms[number].members:
+            send_room_info(rooms[number], i)
 
         geo_team = []
         aero_team = []
 
         for j, i in enumerate(rooms[number]):
-            if j % 2 == 0:
+            if (j + 1) % 2 == 0:
                 geo_team.append(i.y_char)
             else:
                 aero_team.append(i.y_char)

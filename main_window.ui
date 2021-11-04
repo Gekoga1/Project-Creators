@@ -355,13 +355,13 @@
           </size>
          </property>
          <property name="minimum">
-          <number>10</number>
+          <number>5</number>
          </property>
          <property name="maximum">
           <number>1000</number>
          </property>
          <property name="singleStep">
-          <number>10</number>
+          <number>5</number>
          </property>
          <property name="value">
           <number>10</number>
@@ -540,13 +540,13 @@
           </size>
          </property>
          <property name="minimum">
-          <number>10</number>
+          <number>5</number>
          </property>
          <property name="maximum">
           <number>1000</number>
          </property>
          <property name="singleStep">
-          <number>10</number>
+          <number>5</number>
          </property>
          <property name="value">
           <number>10</number>
@@ -589,7 +589,7 @@
      <bool>true</bool>
     </property>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>20</x>
@@ -908,7 +908,7 @@
      </item>
     </layout>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>402</x>

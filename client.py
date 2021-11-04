@@ -3,9 +3,10 @@ from PyQt5.QtWidgets import QFrame
 from PyQt5.QtWidgets import QGridLayout, QWidget, QScrollArea
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QTableWidgetItem, QFileDialog
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import QByteArray
+from PyQt5.QtCore import QByteArray, QThread, pyqtSignal, QObject
 from login_window import Ui_LoginWindow
 from main_window import Ui_MainWindow
+from waiting_screen import Ui_Waiting
 
 from client_lib import *
 
@@ -70,7 +71,7 @@ class Info:
 
     def list_ref(self):
         return [*[f'{j}: {i}' for j, i in
-                  zip(["Str", "Agl", "Int", "Pyro", "Aqua", "Geo", "Aero", "Init"], self.stats)]]
+                  zip(["Str", "Agl", "Int", "Init", "Pyro", "Aqua", "Geo", "Aero"], self.stats)]]
 
     def __str__(self):
         return f'{self.lvl, self.name, self.max_hp, self.max_mp} ' \
@@ -152,16 +153,15 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         self.LoadImg.clicked.connect(self.load_avatar)
 
     def create_room(self):
-        battle_window.new_char_init(['geo', info])
-        show_battle_widow(self)
-        '''send("!CREATE_ROOM")
-        send(str((self.Value.value())))'''
+        send("!CREATE_ROOM")
+        send(str((self.Value.value())))
+        show_waiting_widow(self)
 
     def connect_room(self):
         send("!CONNECT_ROOM")
         answer = receive()
         if answer == "!True":
-            pass
+            show_waiting_widow(self)
         elif answer == "!False":
             self.ErrorLable.setText(receive())
 
@@ -246,26 +246,26 @@ class Main_screen(QMainWindow, Ui_MainWindow):
                        self.GeoValue.value(), self.AeroValue.value(),
                        self.MpValue.value() // 5, self.HpValue.value() // 5])
 
-        if info.lvl - summery + 12 < 0:
-            self.sender().setValue(self.sender().value() + info.lvl - summery + 12)
+        if info.lvl - summery + 15 < 0:
+            self.sender().setValue(self.sender().value() + info.lvl - summery + 15)
             self.Points.setText("0")
         else:
-            self.Points.setText(str(info.lvl - summery + 12))
+            self.Points.setText(str(info.lvl - summery + 15))
 
     def hp_mp_change(self):
-        if self.sender().value() % 10 == 0:
+        if self.sender().value() % 5 == 0:
             summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
                            self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
                            self.GeoValue.value(), self.AeroValue.value(),
                            self.MpValue.value() // 5, self.HpValue.value() // 5])
 
-            if info.lvl - summery + 12 < 0:
-                self.sender().setValue(self.sender().value() + info.lvl - summery + 12)
+            if info.lvl - summery + 15 < 0:
+                self.sender().setValue(self.sender().value() + info.lvl - summery + 15)
                 self.Points.setText("0")
             else:
-                self.Points.setText(str(info.lvl - summery + 12))
+                self.Points.setText(str(info.lvl - summery + 15))
         else:
-            self.sender().setValue((self.sender().value() // 10) * 10)
+            self.sender().setValue((self.sender().value() // 5) * 5)
 
     def save_point(self):
         info.name = self.Name.text()
@@ -282,6 +282,7 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         send("!SAVE_POINT")
         send_bytes(pickle.dumps(info, 3))
         send_image(base64.encodebytes(self.pixmap))
+        info.image = self.pixmap
 
     def current_ability(self):
         item = self.SkillTree.currentItem()
@@ -308,14 +309,77 @@ class Main_screen(QMainWindow, Ui_MainWindow):
             self.pixmap = file.read()
 
 
+class UpdateThread(QObject):
+    new_data = pyqtSignal(int)
+    game_start = pyqtSignal()
+
+    def __init__(self):
+        QObject.__init__(self)
+
+    # noinspection PyUnresolvedReferences
+    def run(self):
+        rec = receive()
+        if rec == "!NEW_PLAYER":
+            self.new_data.emit(int(receive()))
+        elif rec == "!START":
+            self.game_start.emit()
+
+
+class Waiting_screen(QMainWindow, Ui_Waiting):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+        self.setWindowTitle('Project-Creators')
+        self.thread = QThread()
+        self.update = UpdateThread()
+
+    # noinspection PyUnresolvedReferences
+    def update_info(self, players, value):
+        self.Players.setText(f"{players}/{value}")
+        self.progressBar.setMaximum(value)
+        self.progressBar.setValue(players)
+
+        self.update.moveToThread(self.thread)
+        self.update.game_start.connect(self.start)
+        self.thread.started.connect(self.update.run)
+        self.update.new_data.connect(self.update_value)
+        self.thread.start()
+
+    def update_value(self, data):
+        value = int(self.Players.text().split('/')[1])
+        self.Players.setText(f"{value}/{data}")
+        self.progressBar.setValue(data)
+
+    def start(self):
+        self.thread.quit()
+
+        book = defaultdict(list)
+        for i in ["geo", "aero"]:
+            rec = receive()
+            count = int(rec)
+            if count >= 1:
+                for j in range(count):
+                    char = pickle.loads(receive_bytes())
+                    char.image = base64.decodebytes(receive_image())
+                    book[i].append(char)
+
+        for i in ["geo", "aero"]:
+            for j in book[i]:
+                battle_window.room_info[i].append(j)
+
+        battle_window.update_info()
+        show_battle_widow(self)
+
+
 class Ui_Battle(object):
     def setupUi(self, Battle):
         Battle.setObjectName("Battle")
-        Battle.resize(1033, 815)
+        Battle.resize(1205, 835)
+        Battle.setMinimumSize(QtCore.QSize(1205, 835))
         self.centralwidget = QtWidgets.QWidget(Battle)
         self.centralwidget.setObjectName("centralwidget")
-        self.horizontalLayout_10 = QtWidgets.QHBoxLayout(self.centralwidget)
-        self.horizontalLayout_10.setObjectName("horizontalLayout_10")
+        self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.horizontalLayout_6 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_6.setObjectName("horizontalLayout_6")
         self.horizontalLayout_5 = QtWidgets.QHBoxLayout()
@@ -325,7 +389,7 @@ class Ui_Battle(object):
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         self.geo_area = QtWidgets.QScrollArea(self.centralwidget)
         self.geo_area.setMinimumSize(QtCore.QSize(374, 750))
-        self.geo_area.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.geo_area.setLayoutDirection(QtCore.Qt.LeftToRight)
         self.geo_area.setAutoFillBackground(False)
         self.geo_area.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.UnitedStates))
         self.geo_area.setFrameShape(QtWidgets.QFrame.Box)
@@ -339,7 +403,7 @@ class Ui_Battle(object):
         self.geo_area.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.geo_area.setObjectName("geo_area")
         self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 366, 742))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 366, 762))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.geo_area.setWidget(self.scrollAreaWidgetContents)
         self.horizontalLayout_2.addWidget(self.geo_area)
@@ -351,7 +415,6 @@ class Ui_Battle(object):
         self.horizontalLayout_5.addWidget(self.line)
         self.aero_area = QtWidgets.QScrollArea(self.centralwidget)
         self.aero_area.setMinimumSize(QtCore.QSize(374, 750))
-        self.aero_area.setLayoutDirection(QtCore.Qt.LeftToRight)
         self.aero_area.setAutoFillBackground(False)
         self.aero_area.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.UnitedStates))
         self.aero_area.setFrameShape(QtWidgets.QFrame.Box)
@@ -365,7 +428,7 @@ class Ui_Battle(object):
         self.aero_area.setAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.aero_area.setObjectName("aero_area")
         self.scrollAreaWidgetContents_2 = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 366, 744))
+        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 366, 764))
         self.scrollAreaWidgetContents_2.setObjectName("scrollAreaWidgetContents_2")
         self.aero_area.setWidget(self.scrollAreaWidgetContents_2)
         self.horizontalLayout_5.addWidget(self.aero_area)
@@ -379,45 +442,78 @@ class Ui_Battle(object):
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.Log = QtWidgets.QListWidget(self.centralwidget)
         self.Log.setMinimumSize(QtCore.QSize(200, 300))
-        self.Log.setMaximumSize(QtCore.QSize(250, 16777215))
+        self.Log.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(12)
+        self.Log.setFont(font)
         self.Log.setObjectName("Log")
         self.verticalLayout_3.addWidget(self.Log)
+        self.verticalLayout = QtWidgets.QVBoxLayout()
+        self.verticalLayout.setObjectName("verticalLayout")
         self.label = QtWidgets.QLabel(self.centralwidget)
         self.label.setMinimumSize(QtCore.QSize(200, 30))
+        self.label.setMaximumSize(QtCore.QSize(16777215, 16777215))
         font = QtGui.QFont()
-        font.setPointSize(9)
+        font.setFamily("Arial")
+        font.setPointSize(11)
         self.label.setFont(font)
+        self.label.setText("")
         self.label.setAlignment(QtCore.Qt.AlignCenter)
         self.label.setObjectName("label")
-        self.verticalLayout_3.addWidget(self.label)
+        self.verticalLayout.addWidget(self.label)
+        self.Error = QtWidgets.QLabel(self.centralwidget)
+        self.Error.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        font.setBold(True)
+        font.setWeight(75)
+        self.Error.setFont(font)
+        self.Error.setText("")
+        self.Error.setAlignment(QtCore.Qt.AlignCenter)
+        self.Error.setObjectName("Error")
+        self.verticalLayout.addWidget(self.Error)
+        self.verticalLayout_3.addLayout(self.verticalLayout)
         self.gridLayout = QtWidgets.QGridLayout()
         self.gridLayout.setHorizontalSpacing(10)
         self.gridLayout.setVerticalSpacing(6)
         self.gridLayout.setObjectName("gridLayout")
         self.AbilityButton1 = QtWidgets.QPushButton(self.centralwidget)
+        self.AbilityButton1.setEnabled(False)
+        self.AbilityButton1.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AbilityButton1.setObjectName("AbilityButton1")
         self.gridLayout.addWidget(self.AbilityButton1, 0, 1, 1, 1)
         self.AbilityButton3 = QtWidgets.QPushButton(self.centralwidget)
+        self.AbilityButton3.setEnabled(False)
+        self.AbilityButton3.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AbilityButton3.setObjectName("AbilityButton3")
         self.gridLayout.addWidget(self.AbilityButton3, 1, 1, 1, 1)
         self.AbilityButton4 = QtWidgets.QPushButton(self.centralwidget)
+        self.AbilityButton4.setEnabled(False)
+        self.AbilityButton4.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AbilityButton4.setObjectName("AbilityButton4")
         self.gridLayout.addWidget(self.AbilityButton4, 2, 0, 1, 1)
         self.AbilityButton2 = QtWidgets.QPushButton(self.centralwidget)
+        self.AbilityButton2.setEnabled(False)
+        self.AbilityButton2.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AbilityButton2.setObjectName("AbilityButton2")
         self.gridLayout.addWidget(self.AbilityButton2, 1, 0, 1, 1)
         self.AttackButton = QtWidgets.QPushButton(self.centralwidget)
+        self.AttackButton.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AttackButton.setObjectName("AttackButton")
         self.gridLayout.addWidget(self.AttackButton, 0, 0, 1, 1)
         self.AbilityButton5 = QtWidgets.QPushButton(self.centralwidget)
+        self.AbilityButton5.setEnabled(False)
+        self.AbilityButton5.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AbilityButton5.setObjectName("AbilityButton5")
         self.gridLayout.addWidget(self.AbilityButton5, 2, 1, 1, 1)
         self.verticalLayout_3.addLayout(self.gridLayout)
         self.horizontalLayout_6.addLayout(self.verticalLayout_3)
-        self.horizontalLayout_10.addLayout(self.horizontalLayout_6)
+        self.verticalLayout_2.addLayout(self.horizontalLayout_6)
         Battle.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(Battle)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1033, 21))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1205, 21))
         self.menubar.setObjectName("menubar")
         Battle.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(Battle)
@@ -430,13 +526,12 @@ class Ui_Battle(object):
     def retranslateUi(self, Battle):
         _translate = QtCore.QCoreApplication.translate
         Battle.setWindowTitle(_translate("Battle", "MainWindow"))
-        self.label.setText(_translate("Battle", "TextLabel"))
-        self.AbilityButton1.setText(_translate("Battle", "PushButton"))
-        self.AbilityButton3.setText(_translate("Battle", "PushButton"))
-        self.AbilityButton4.setText(_translate("Battle", "PushButton"))
-        self.AbilityButton2.setText(_translate("Battle", "PushButton"))
-        self.AttackButton.setText(_translate("Battle", "PushButton"))
-        self.AbilityButton5.setText(_translate("Battle", "PushButton"))
+        self.AbilityButton1.setText(_translate("Battle", "None"))
+        self.AbilityButton3.setText(_translate("Battle", "None"))
+        self.AbilityButton4.setText(_translate("Battle", "None"))
+        self.AbilityButton2.setText(_translate("Battle", "None"))
+        self.AttackButton.setText(_translate("Battle", "Attack"))
+        self.AbilityButton5.setText(_translate("Battle", "None"))
 
 
 def create_new_character_frame(self, num, char_info):
@@ -503,6 +598,7 @@ def create_new_character_frame(self, num, char_info):
     list.setObjectName(f"list_{num}")
     book = char_info.weapon.list_ref()
     book += char_info.armor.list_ref()
+    book += char_info.list_ref()
     list.addItems(book)
     horizontalLayout.addWidget(list)
 
@@ -544,6 +640,34 @@ def create_new_character_frame(self, num, char_info):
     return frame
 
 
+class ControlThread(QObject):
+    log = pyqtSignal(list)
+    error = pyqtSignal(str)
+    input = pyqtSignal()
+    end = pyqtSignal()
+
+    def __init__(self):
+        QObject.__init__(self)
+
+    # noinspection PyUnresolvedReferences
+    def run(self):
+        while True:
+            rec = receive()
+            print(rec)
+            if rec == "!LOG":
+                self.log.emit(pickle.loads(receive_bytes()))
+            elif rec == "!INPUT":
+                self.input.emit()
+                rec = receive()
+                if rec == "!INPUT":
+                    self.input.emit()
+            elif rec == "!ERROR":
+                self.error.emit(receive())
+            elif rec == "!GAME_END":
+                self.end.emit()
+
+
+# noinspection PyUnresolvedReferences
 class Battle_screen(QMainWindow, Ui_Battle):
     def __init__(self):
         super().__init__()
@@ -559,34 +683,44 @@ class Battle_screen(QMainWindow, Ui_Battle):
             layout.addWidget(create_new_character_frame(self, j, i))
 
         w = QWidget()
+        w.setObjectName("geo_w")
         w.setLayout(layout)
 
         self.geo_area.setWidget(w)
 
         layout = QGridLayout()
-        for j, i in enumerate(self.room_info['geo']):
+        for j, i in enumerate(self.room_info['aero']):
             layout.addWidget(create_new_character_frame(self, j + len(self.room_info['geo']), i))
 
         w = QWidget()
+        w.setObjectName("aero_w")
         w.setLayout(layout)
 
         self.aero_area.setWidget(w)
 
-    def new_char_init(self, char_info):
-        char_info[1].image = base64.decodebytes(char_info[1].image)
-        self.room_info[char_info[0]].append(char_info[1])
-        self.update_info()
+        for j, i in enumerate(info.abilities):
+            butt = self.findChild(QtWidgets.QPushButton, f"AbilityButton{j + 1}")
+            butt.setText(i)
+            butt.setEnabled(True)
 
-    def waiting(self):
-        while True:
-            receivation = receive()
-            if receivation == "!START":
-                pass
-            elif receivation == "!NEW_PLAYER":
-                char_info = pickle.loads(receive_bytes())
-                tag, char_info = char_info[0], char_info[1]
-                char_info.image = base64.decodebytes(receive_image())
-                self.new_char_init([tag, char_info])
+        self.update = ControlThread()
+        self.thread = QThread()
+        self.update.moveToThread(self.thread)
+        self.thread.started.connect(self.update.run)
+        self.update.log.connect(self.log_unpack)
+        self.update.input.connect(self.make_action)
+        self.thread.start()
+
+    def log_unpack(self, items):
+        self.label.setText('')
+        self.Log.clear()
+        self.Log.addItems(items)
+
+    def make_action(self):
+        if self.label.text() == '':
+            self.label.setText("Make a turn")
+        elif self.label.text() == "Make a turn":
+            self.label.setText("Choose target")
 
 
 def handle_game():
@@ -613,15 +747,23 @@ def show_battle_widow(this):
     battle_window.show()
 
 
+def show_waiting_widow(this):
+    this.hide()
+    waiting_window.show()
+    waiting_window.update_info(*pickle.loads(receive_bytes()))
+
+
 if __name__ == '__main__':
     info = Info(1, '', 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0], [],
                 Info_Weapon('', '', 0, '', None),
                 Info_Armor('', '', [0, 0, 0, 0, 0, 0, 0, 0], 0, 0), None, None, b'')
+
     try:
         app = QApplication(sys.argv)
         login_window = Login_screen()
         main_window = Main_screen()
         battle_window = Battle_screen()
+        waiting_window = Waiting_screen()
         login_window.show()
         sys.exit(app.exec_())
     except SystemExit:
