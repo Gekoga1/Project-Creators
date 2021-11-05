@@ -2,6 +2,7 @@ import socket
 import pickle
 import sys
 import base64
+import time
 from math import ceil
 from collections import defaultdict
 import threading
@@ -25,8 +26,10 @@ def send(msg):
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)    # msg with length of next msg
         client.send(message)
-        while not client.recv(4).decode(FORMAT) == "!1":
+        if client.recv(2).decode(FORMAT) == "!1":
             pass
+        else:
+            print("error")
     except ConnectionError:
         raise SystemExit
 
@@ -38,8 +41,10 @@ def send_bytes(msg):
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)  # msg with length of next msg
         client.send(msg)
-        while not client.recv(4).decode(FORMAT) == "!1":
+        if client.recv(2).decode(FORMAT) == "!1":
             pass
+        else:
+            print("error")
     except ConnectionError:
         raise SystemExit
 
@@ -63,7 +68,6 @@ def receive():
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length).decode(FORMAT)
                 client.send("!1".encode(FORMAT))
-                print(msg)
                 return msg
     except ConnectionError:
         raise SystemExit

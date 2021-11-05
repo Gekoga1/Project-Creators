@@ -165,7 +165,6 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         if answer == "!True":
             show_waiting_widow(self)
         elif answer == "!False":
-            print("!FALSE")
             self.ErrorLable.setText(receive())
 
     def update_info(self):
@@ -566,6 +565,8 @@ class Ui_Battle(object):
 
 
 def create_new_character_frame(self, num, char_info):
+    widget_list = defaultdict()
+
     frame = QFrame(self)
     frame.setGeometry(QtCore.QRect(4, 10, 331, 318))
     frame.setObjectName(f"frame_{num}")
@@ -573,6 +574,8 @@ def create_new_character_frame(self, num, char_info):
     frame.setMinimumSize(331, 318)
     frame.setFrameShape(QtWidgets.QFrame.Box)
     frame.setFrameShadow(QtWidgets.QFrame.Plain)
+
+    widget_list["frame"] = frame
 
     lvl = QtWidgets.QLabel(frame)
     lvl.setGeometry(QtCore.QRect(8, 5, 31, 20))
@@ -583,6 +586,8 @@ def create_new_character_frame(self, num, char_info):
     font.setItalic(False)
     lvl.setFont(font)
     lvl.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop | QtCore.Qt.AlignTrailing)
+
+    widget_list["lvl"] = lvl
 
     layoutWidget = QtWidgets.QWidget(frame)
     layoutWidget.setGeometry(QtCore.QRect(16, 68, 311, 243))
@@ -604,6 +609,8 @@ def create_new_character_frame(self, num, char_info):
     avatar.setObjectName(f"avatar_{num}")
     horizontalLayout.addWidget(avatar)
 
+    widget_list["avatar"] = avatar
+
     mpBar = QtWidgets.QProgressBar(frame)
     mpBar.setGeometry(QtCore.QRect(16, 48, 301, 16))
     mpBar.setAutoFillBackground(False)
@@ -613,6 +620,8 @@ def create_new_character_frame(self, num, char_info):
     mpBar.setTextVisible(False)
     mpBar.setInvertedAppearance(True)
     mpBar.setObjectName(f"mpBar_{num}")
+
+    widget_list["mpBar"] = mpBar
 
     mp = QtWidgets.QLabel(frame)
     mp.setGeometry(QtCore.QRect(20, 48, 291, 16))
@@ -625,6 +634,8 @@ def create_new_character_frame(self, num, char_info):
     mp.setObjectName(f"mp_{num}")
     mp.setText(f"{char_info.mp}/{char_info.max_mp}")
 
+    widget_list["mp"] = mp
+
     list = QtWidgets.QListWidget(layoutWidget)
     list.setObjectName(f"list_{num}")
     book = char_info.weapon.list_ref()
@@ -632,6 +643,8 @@ def create_new_character_frame(self, num, char_info):
     book += char_info.list_ref()
     list.addItems(book)
     horizontalLayout.addWidget(list)
+
+    widget_list["list"] = list
 
     verticalLayout.addLayout(horizontalLayout)
 
@@ -641,12 +654,16 @@ def create_new_character_frame(self, num, char_info):
     target.setEnabled(False)
     verticalLayout.addWidget(target)
 
+    widget_list["target"] = target
+
     hpBar = QtWidgets.QProgressBar(frame)
     hpBar.setGeometry(QtCore.QRect(16, 29, 301, 16))
     hpBar.setMaximum(char_info.max_hp)
     hpBar.setProperty("value", char_info.hp)
     hpBar.setTextVisible(False)
     hpBar.setObjectName(f"hpBar_{num}")
+
+    widget_list["hpBar"] = hpBar
 
     hp = QtWidgets.QLabel(frame)
     hp.setGeometry(QtCore.QRect(20, 29, 291, 16))
@@ -656,6 +673,8 @@ def create_new_character_frame(self, num, char_info):
     hp.setAlignment(QtCore.Qt.AlignCenter)
     hp.setObjectName(f"hp_{num}")
     hp.setText(f"{char_info.max_hp}/{char_info.hp}")
+
+    widget_list["hp"] = hp
 
     name = QtWidgets.QLabel(frame)
     name.setGeometry(QtCore.QRect(40, 10, 241, 21))
@@ -669,7 +688,9 @@ def create_new_character_frame(self, num, char_info):
     name.setObjectName(f"name_{num}")
     name.setText(char_info.name)
 
-    return frame
+    widget_list["name"] = name
+
+    return [frame, widget_list]
 
 
 class ControlThread(QObject):
@@ -688,6 +709,7 @@ class ControlThread(QObject):
                 rec = receive()
                 if rec == "!LOG":
                     self.log.emit(pickle.loads(receive_bytes()))
+                    self.receiving = False
                 elif rec == "!INPUT":
                     self.input.emit(receive())
                     self.receiving = False
@@ -707,13 +729,16 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.chars = []
         self.targets = []
         self.count = 0
+        self.widget_list = []
 
     def update_info(self):
         self.chars = []
 
         layout = QGridLayout()
         for j, i in enumerate(self.room_info['geo']):
-            layout.addWidget(create_new_character_frame(self, j, i))
+            widget = create_new_character_frame(self, j, i)
+            self.widget_list.append(widget[1])
+            layout.addWidget(widget[0])
             self.chars.append(i)
 
         w = QWidget()
@@ -724,7 +749,9 @@ class Battle_screen(QMainWindow, Ui_Battle):
 
         layout = QGridLayout()
         for j, i in enumerate(self.room_info['aero']):
-            layout.addWidget(create_new_character_frame(self, j + len(self.room_info['geo']), i))
+            widget = create_new_character_frame(self, j + len(self.room_info['geo']), i)
+            self.widget_list.append(widget[1])
+            layout.addWidget(widget[0])
             self.chars.append(i)
 
         w = QWidget()
@@ -756,6 +783,19 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.label.setText('')
         self.Log.clear()
         self.Log.addItems(items)
+        data = pickle.loads(receive_bytes())
+        self.info_unpack(data)
+        self.update.receiving = True
+
+    def info_unpack(self, data):
+        for j, i in enumerate(data):
+            self.widget_list[j]["hp"].setText(f"{i[0]}/{i[1]}")
+            self.widget_list[j]["hpBar"].setMaximum(int(i[1] * 1000))
+            self.widget_list[j]["hpBar"].setValue(int(i[0] * 1000))
+
+            self.widget_list[j]["mp"].setText(f"{i[2]}/{i[3]}")
+            self.widget_list[j]["mpBar"].setMaximum(int(i[3] * 1000))
+            self.widget_list[j]["mpBar"].setValue(int((i[3] - i[2]) * 1000))
 
     def enable_buttons(self, act: bool):
         for j, i in enumerate(info.abilities):

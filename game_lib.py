@@ -78,15 +78,17 @@ def sqlite_update(request, conditions) -> None:
 
 def send(msg, user):
     try:
+        print(msg)
         message = msg.encode(FORMAT)
         msg_length = len(message)
         send_length = str(msg_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)    # msg with length of next msg
         user.conn.send(message)
-        while not user.conn.recv(64).decode(FORMAT) == "!1":
+        if user.conn.recv(2).decode(FORMAT) == "!1":
             pass
-        time.sleep(0.04)
+        else:
+            print("error")
     except ConnectionError or OSError:
         try:
             user.conn.close()
@@ -102,8 +104,10 @@ def send_bytes(msg, user):
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)  # msg with length of next msg
         user.conn.send(msg)
-        while not user.conn.recv(64).decode(FORMAT) == "!1":
+        if user.conn.recv(2).decode(FORMAT) == "!1":
             pass
+        else:
+            print("error")
     except ConnectionError or OSError:
         try:
             user.conn.close()
@@ -134,7 +138,6 @@ def receive(user):
                 raise SystemExit
             user.conn.send("!1".encode(FORMAT))
             print(user.addr, msg)
-            time.sleep(0.04)
             return msg
     except ConnectionError or OSError:
         try:
@@ -181,8 +184,8 @@ def target_choose(msg, user, match):
     send("!CHOOSE_TARGET", user)
     send(str(msg), user)
     targets = pickle.loads(receive_bytes(user))
-    targets = list(map(lambda x: list(map(str, match.characters)).index(x), targets))
-    print(targets)
+    names = list(map(str, match.characters))
+    targets = list(map(lambda x: names.index(x), targets))
     return targets
 
 
@@ -435,10 +438,12 @@ class Character:
         self.mp = clamp(self.mp, self.max_mp, 0)
 
     def lose_mp(self, lost):
+        lost = round(lost, 3)
         self.mp -= lost
         self.mp_check()
 
     def use_mp(self, lost) -> bool:
+        lost = round(lost, 3)
         if self.mp < lost:
             return False
         else:
@@ -446,12 +451,13 @@ class Character:
             return True
 
     def get_mp(self, amount):
-        amount = round(amount, 2)
+        amount = round(amount, 3)
         self.mp += amount
         self.mp_check()
 
     def get_damage(self, damage: float, sender, type_of='true') -> bool:
         if self.alive:
+            damage = round(damage, 3)
             if type_of == 'true':
                 self.hp -= damage
                 self.match.send_room(f'{self} получает {damage}'
@@ -519,6 +525,7 @@ class Character:
                     return True
 
     def get_heal(self, heal: float) -> None:
+        heal = round(heal, 3)
         if self.alive:
             self.hp += heal
             self.hp_check()
@@ -576,6 +583,7 @@ class Character:
                 try:
                     choose = target_choose(1, self.owner, self.match)[0]
                     self.attack(self.match.characters[choose])
+                    self.match.send_room(f"{str(self).capitalize()} оканчивает ход", with_update=True)
                 except IndexError:
                     send("!ERROR", self.owner)
                     send('Error action', self.owner)
@@ -595,6 +603,8 @@ class Character:
                             send("!ERROR", self.owner)
                             send("You can't do that", self.owner)
                             self.make_action()
+                        else:
+                            self.match.send_room(f"{str(self).capitalize()} оканчивает ход", with_update=True)
                     except IndexError:
                         send("!ERROR", self.owner)
                         send('Error action', self.owner)
@@ -732,7 +742,8 @@ class Ability:
 
     def choose(self, match):
         try:
-            book = target_choose(2, self.owner, self.match)
+            book = target_choose(self.number_of_choose, self.owner, self.match)
+            print([list(map(lambda z: match.characters[z], book)), book])
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
             send("!ERROR", self.owner)
@@ -822,7 +833,7 @@ class Splash(Ability):
                     except IndexError:
                         pass
                 elif i.tag == "aero":
-                    j -= self.match.aero_len
+                    j -= self.match.geo_len
                     try:
                         if j > 0:
                             user.attack(self.match.aero_team[j - 1])
@@ -850,11 +861,24 @@ class Game:
         self.aero_len = len(self.aero_team)
         self.characters = self.geo_team + self.aero_team
 
-    def send_room(self, msg):
+    def send_room(self, msg, with_update=False):
         self.log.append(msg)
-        send_room("!LOG", self.room)
-        for i in self.room.members:
-            send_bytes(pickle.dumps(self.log, 3), i)
+        if with_update:
+            info = self.get_info()
+            send_room("!LOG", self.room)
+            for i in self.room.members:
+                send_bytes(pickle.dumps(self.log, 3), i)
+                time.sleep(0.1)
+                if with_update:
+                    send_bytes(pickle.dumps(info, 3), i)
+
+    def get_info(self):
+        book = []
+        for i in self.characters:
+            book.append([i.hp, i.max_hp, i.mp, i.max_mp, i.defence, i.spell_defence,
+                         i.strength, i.agility, i.intellect, i.initiation,
+                         i.pyro, i.aqua, i.geo, i.aero, list(map(str, i.state))])
+        return book
 
     def check_teams_alive(self):
         geo = (not len(list(filter(lambda z: z.alive, self.geo_team))) > 0)
@@ -872,6 +896,7 @@ class Game:
             return True
 
     def round_start(self):
+        self.send_room(f"Новый раунд начинается!", with_update=True)
         for character in self.geo_team:
             character.proc_states(True)
         for character in self.aero_team:
@@ -882,12 +907,18 @@ class Game:
             character.proc_states(False)
         for character in self.aero_team:
             character.proc_states(False)
+        self.send_room(f"Раунд закончился!", with_update=True)
+        time.sleep(1)
 
     def start(self):
         for character in self.geo_team:
             character.tag = 'geo'
+            character.hp = character.max_hp
+            character.mp = character.max_mp
         for character in self.aero_team:
             character.tag = 'aero'
+            character.hp = character.max_hp
+            character.mp = character.max_mp
         for character in self.characters:
             character.update_stats()
             character.set_up(self)
@@ -898,7 +929,7 @@ class Game:
                 character.get_mp(character.intellect)
             self.round_start()
             for character in sorted(self.characters, key=lambda z: z.initiation, reverse=True):
-                self.send_room(f'{character} совершает действие')
+                self.send_room(f'{character} совершает действие', with_update=True)
                 character.make_action()
             self.round_end()
 
