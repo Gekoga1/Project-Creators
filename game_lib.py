@@ -84,8 +84,9 @@ def send(msg, user):
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)    # msg with length of next msg
         user.conn.send(message)
-        while not user.conn.recv(48).decode(FORMAT) == "!True":
+        while not user.conn.recv(64).decode(FORMAT) == "!1":
             pass
+        time.sleep(0.04)
     except ConnectionError or OSError:
         try:
             user.conn.close()
@@ -101,7 +102,7 @@ def send_bytes(msg, user):
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)  # msg with length of next msg
         user.conn.send(msg)
-        while not user.conn.recv(48).decode(FORMAT) == "!True":
+        while not user.conn.recv(64).decode(FORMAT) == "!1":
             pass
     except ConnectionError or OSError:
         try:
@@ -126,16 +127,14 @@ def receive(user):
     try:
         msg_length = user.conn.recv(HEADER).decode(FORMAT)
         if msg_length:
-            try:
-                msg_length = int(msg_length)
-            except ValueError:
-                msg_length = 20
+            msg_length = int(msg_length)
             msg = user.conn.recv(msg_length).decode(FORMAT)
-            print(user.addr, msg)
             if msg == "!DISCONNECT":
                 user.conn.close()
                 raise SystemExit
-            user.conn.send("!True".encode(FORMAT))
+            user.conn.send("!1".encode(FORMAT))
+            print(user.addr, msg)
+            time.sleep(0.04)
             return msg
     except ConnectionError or OSError:
         try:
@@ -149,15 +148,12 @@ def receive_bytes(user):
     try:
         msg_length = user.conn.recv(HEADER).decode(FORMAT)
         if msg_length:
-            try:
-                msg_length = int(msg_length)
-            except ValueError:
-                msg_length = 20
+            msg_length = int(msg_length)
             msg = user.conn.recv(msg_length)
             if msg == "!DISCONNECT":
                 user.conn.close()
                 raise SystemExit
-            user.conn.send("!True".encode(FORMAT))
+            user.conn.send("!1".encode(FORMAT))
             return msg
     except ConnectionError or OSError:
         try:
@@ -174,10 +170,20 @@ def receive_image(user):
     return book
 
 
-def target_input(msg, user):
+def target_action(user):
     send("!INPUT", user)
-    time.sleep(1)
+    send("!MAKE_ACTION", user)
     return receive(user)
+
+
+def target_choose(msg, user, match):
+    send("!INPUT", user)
+    send("!CHOOSE_TARGET", user)
+    send(str(msg), user)
+    targets = pickle.loads(receive_bytes(user))
+    targets = list(map(lambda x: list(map(str, match.characters)).index(x), targets))
+    print(targets)
+    return targets
 
 
 def registration(user, uid):
@@ -198,8 +204,8 @@ def registration(user, uid):
                 break
 
         sqlite_update("""INSERT INTO Account(id, name, password, lvl, Weapons, Armors, ImageId)
-                        VALUES(?, ?, ?, 1, ?, ?, 1)""", (new_uid, msg[0], msg[1],
-                                                         pickle.dumps([1, 2, 3], 3), pickle.dumps([2, 3], 3)))
+                        VALUES(?, ?, ?, 15, ?, ?, 1)""", (new_uid, msg[0], msg[1],
+                                                          pickle.dumps([1, 2, 3], 3), pickle.dumps([2, 3], 3)))
 
         user.y_id = new_uid
         user.name = msg[0]
@@ -564,10 +570,11 @@ class Character:
 
     def make_action(self):
         if self.alive:
-            action = target_input('Actions: attack/ability/info\n', self.owner).lower()
+            action = target_action(self.owner).lower()
             if action == 'attack':
+                send("!Action", self.owner)
                 try:
-                    choose = int(target_input('choose target ', self.owner)) - 1
+                    choose = target_choose(1, self.owner, self.match)[0]
                     self.attack(self.match.characters[choose])
                 except IndexError:
                     send("!ERROR", self.owner)
@@ -579,10 +586,11 @@ class Character:
                     self.make_action()
 
             elif action == 'ability':
+                send("!Action", self.owner)
                 if len(self.abilities) > 0:
                     try:
-                        choose = int(target_input(None, self.owner)) - 1
-
+                        choose = receive(self.owner)
+                        choose = list(map(str, self.abilities)).index(choose)
                         if not self.abilities[choose].usage(self, self.match):
                             send("!ERROR", self.owner)
                             send("You can't do that", self.owner)
@@ -599,22 +607,8 @@ class Character:
                     send("!ERROR", self.owner)
                     send('Error action', self.owner)
                     self.make_action()
-            elif action == 'info':
-                try:
-                    choose = int(target_input('choose target ', self.owner)) - 1
-                    self.match.send_room(self.match.characters[choose].get_info())
-                    self.make_action()
-                except IndexError:
-                    send("!ERROR", self.owner)
-                    send('Error action', self.owner)
-                    self.make_action()
-                except ValueError:
-                    send("!ERROR", self.owner)
-                    send('Error action', self.owner)
-                    self.make_action()
             else:
                 send("!ERROR", self.owner)
-                send('Error action', self.owner)
                 self.make_action()
 
 
@@ -738,9 +732,7 @@ class Ability:
 
     def choose(self, match):
         try:
-            book = []
-            for i in range(self.number_of_choose):
-                book.append(int(target_input(f'target №{i} - ', self.owner)) - 1)
+            book = target_choose(2, self.owner, self.match)
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
             send("!ERROR", self.owner)
@@ -863,7 +855,6 @@ class Game:
         send_room("!LOG", self.room)
         for i in self.room.members:
             send_bytes(pickle.dumps(self.log, 3), i)
-        time.sleep(1)
 
     def check_teams_alive(self):
         geo = (not len(list(filter(lambda z: z.alive, self.geo_team))) > 0)

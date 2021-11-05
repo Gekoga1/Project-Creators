@@ -159,7 +159,7 @@
       <item>
        <layout class="QVBoxLayout" name="verticalLayout_3">
         <property name="spacing">
-         <number>50</number>
+         <number>25</number>
         </property>
         <property name="bottomMargin">
          <number>50</number>
@@ -185,6 +185,66 @@
            </font>
           </property>
          </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="TargetList">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>350</width>
+            <height>120</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <property name="sizeConstraint">
+           <enum>QLayout::SetDefaultConstraint</enum>
+          </property>
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item row="2" column="0">
+           <widget class="QPushButton" name="TargetConfirm">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>173</width>
+              <height>35</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Confirm</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="TargetDelete">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>173</width>
+              <height>35</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Delete</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
          <layout class="QVBoxLayout" name="verticalLayout">

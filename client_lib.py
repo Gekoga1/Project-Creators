@@ -25,7 +25,7 @@ def send(msg):
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)    # msg with length of next msg
         client.send(message)
-        while not client.recv(48).decode(FORMAT) == "!True":
+        while not client.recv(4).decode(FORMAT) == "!1":
             pass
     except ConnectionError:
         raise SystemExit
@@ -38,7 +38,7 @@ def send_bytes(msg):
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)  # msg with length of next msg
         client.send(msg)
-        while not client.recv(48).decode(FORMAT) == "!True":
+        while not client.recv(4).decode(FORMAT) == "!1":
             pass
     except ConnectionError:
         raise SystemExit
@@ -62,7 +62,8 @@ def receive():
             if msg_length:
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length).decode(FORMAT)
-                client.send("!True".encode(FORMAT))
+                client.send("!1".encode(FORMAT))
+                print(msg)
                 return msg
     except ConnectionError:
         raise SystemExit
@@ -75,7 +76,7 @@ def receive_bytes():
             if msg_length:
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length)
-                client.send("!True".encode(FORMAT))
+                client.send("!1".encode(FORMAT))
                 return msg
     except ConnectionError:
         raise SystemExit

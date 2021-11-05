@@ -1,3 +1,5 @@
+import pickle
+
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QFrame
 from PyQt5.QtWidgets import QGridLayout, QWidget, QScrollArea
@@ -338,7 +340,6 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
 
     # noinspection PyUnresolvedReferences
     def update_info(self, players, value):
-        print(players, value)
         self.Players.setText(f"{players}/{value}")
         self.progressBar.setMaximum(value)
         self.progressBar.setValue(players)
@@ -442,7 +443,7 @@ class Ui_Battle(object):
         self.horizontalLayout_6.addLayout(self.horizontalLayout_5)
         self.verticalLayout_3 = QtWidgets.QVBoxLayout()
         self.verticalLayout_3.setContentsMargins(-1, -1, -1, 50)
-        self.verticalLayout_3.setSpacing(50)
+        self.verticalLayout_3.setSpacing(25)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.Log = QtWidgets.QListWidget(self.centralwidget)
         self.Log.setMinimumSize(QtCore.QSize(200, 300))
@@ -453,6 +454,29 @@ class Ui_Battle(object):
         self.Log.setFont(font)
         self.Log.setObjectName("Log")
         self.verticalLayout_3.addWidget(self.Log)
+        self.TargetList = QtWidgets.QListWidget(self.centralwidget)
+        self.TargetList.setEnabled(False)
+        self.TargetList.setMaximumSize(QtCore.QSize(350, 120))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        self.TargetList.setFont(font)
+        self.TargetList.setObjectName("TargetList")
+        self.verticalLayout_3.addWidget(self.TargetList)
+        self.gridLayout_2 = QtWidgets.QGridLayout()
+        self.gridLayout_2.setSizeConstraint(QtWidgets.QLayout.SetDefaultConstraint)
+        self.gridLayout_2.setSpacing(0)
+        self.gridLayout_2.setObjectName("gridLayout_2")
+        self.TargetConfirm = QtWidgets.QPushButton(self.centralwidget)
+        self.TargetConfirm.setEnabled(False)
+        self.TargetConfirm.setMaximumSize(QtCore.QSize(173, 35))
+        self.TargetConfirm.setObjectName("TargetConfirm")
+        self.gridLayout_2.addWidget(self.TargetConfirm, 2, 0, 1, 1)
+        self.TargetDelete = QtWidgets.QPushButton(self.centralwidget)
+        self.TargetDelete.setEnabled(False)
+        self.TargetDelete.setMaximumSize(QtCore.QSize(173, 35))
+        self.TargetDelete.setObjectName("TargetDelete")
+        self.gridLayout_2.addWidget(self.TargetDelete, 2, 1, 1, 1)
+        self.verticalLayout_3.addLayout(self.gridLayout_2)
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
         self.label = QtWidgets.QLabel(self.centralwidget)
@@ -506,6 +530,7 @@ class Ui_Battle(object):
         self.AttackButton = QtWidgets.QPushButton(self.centralwidget)
         self.AttackButton.setMaximumSize(QtCore.QSize(180, 16777215))
         self.AttackButton.setObjectName("AttackButton")
+        self.AttackButton.setEnabled(False)
         self.gridLayout.addWidget(self.AttackButton, 0, 0, 1, 1)
         self.AbilityButton5 = QtWidgets.QPushButton(self.centralwidget)
         self.AbilityButton5.setEnabled(False)
@@ -530,6 +555,8 @@ class Ui_Battle(object):
     def retranslateUi(self, Battle):
         _translate = QtCore.QCoreApplication.translate
         Battle.setWindowTitle(_translate("Battle", "MainWindow"))
+        self.TargetConfirm.setText(_translate("Battle", "Confirm"))
+        self.TargetDelete.setText(_translate("Battle", "Delete"))
         self.AbilityButton1.setText(_translate("Battle", "None"))
         self.AbilityButton3.setText(_translate("Battle", "None"))
         self.AbilityButton4.setText(_translate("Battle", "None"))
@@ -611,6 +638,7 @@ def create_new_character_frame(self, num, char_info):
     target = QtWidgets.QPushButton(layoutWidget)
     target.setObjectName(f"target_{num}")
     target.setText("Target")
+    target.setEnabled(False)
     verticalLayout.addWidget(target)
 
     hpBar = QtWidgets.QProgressBar(frame)
@@ -646,32 +674,28 @@ def create_new_character_frame(self, num, char_info):
 
 class ControlThread(QObject):
     log = pyqtSignal(list)
-    error = pyqtSignal(str)
-    input = pyqtSignal()
+    input = pyqtSignal(str)
     end = pyqtSignal()
 
     def __init__(self):
         QObject.__init__(self)
+        self.receiving = True
 
     # noinspection PyUnresolvedReferences
     def run(self):
         while True:
-            rec = receive()
-            print(rec)
-            if rec == "!LOG":
-                self.log.emit(pickle.loads(receive_bytes()))
-            elif rec == "!INPUT":
-                self.input.emit()
+            if self.receiving:
                 rec = receive()
-                if rec == "!INPUT":
-                    self.input.emit()
-            elif rec == "!ERROR":
-                self.error.emit(receive())
-            elif rec == "!GAME_END":
-                self.end.emit()
+                if rec == "!LOG":
+                    self.log.emit(pickle.loads(receive_bytes()))
+                elif rec == "!INPUT":
+                    self.input.emit(receive())
+                    self.receiving = False
+                elif rec == "!GAME_END":
+                    self.end.emit()
+                    self.receiving = False
 
 
-# noinspection PyUnresolvedReferences
 class Battle_screen(QMainWindow, Ui_Battle):
     def __init__(self):
         super().__init__()
@@ -680,11 +704,17 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.room_info = defaultdict(list)
         self.room_info['geo'] = []
         self.room_info['aero'] = []
+        self.chars = []
+        self.targets = []
+        self.count = 0
 
     def update_info(self):
+        self.chars = []
+
         layout = QGridLayout()
         for j, i in enumerate(self.room_info['geo']):
             layout.addWidget(create_new_character_frame(self, j, i))
+            self.chars.append(i)
 
         w = QWidget()
         w.setObjectName("geo_w")
@@ -695,6 +725,7 @@ class Battle_screen(QMainWindow, Ui_Battle):
         layout = QGridLayout()
         for j, i in enumerate(self.room_info['aero']):
             layout.addWidget(create_new_character_frame(self, j + len(self.room_info['geo']), i))
+            self.chars.append(i)
 
         w = QWidget()
         w.setObjectName("aero_w")
@@ -704,8 +735,14 @@ class Battle_screen(QMainWindow, Ui_Battle):
 
         for j, i in enumerate(info.abilities):
             butt = self.findChild(QtWidgets.QPushButton, f"AbilityButton{j + 1}")
+            butt.clicked.connect(self.action)
             butt.setText(i)
-            butt.setEnabled(True)
+        self.AttackButton.clicked.connect(self.action)
+        self.TargetDelete.clicked.connect(self.delete_target)
+        self.TargetConfirm.clicked.connect(self.confirm_target)
+
+        for i in range(len(self.room_info["geo"]) + len(self.room_info["aero"])):
+            self.findChild(QtWidgets.QPushButton, f"target_{i}").clicked.connect(self.add_target)
 
         self.update = ControlThread()
         self.thread = QThread()
@@ -720,24 +757,78 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.Log.clear()
         self.Log.addItems(items)
 
-    def make_action(self):
-        if self.label.text() == '':
-            self.label.setText("Make a turn")
-        elif self.label.text() == "Make a turn":
-            self.label.setText("Choose target")
+    def enable_buttons(self, act: bool):
+        for j, i in enumerate(info.abilities):
+            butt = self.findChild(QtWidgets.QPushButton, f"AbilityButton{j + 1}")
+            butt.setEnabled(act)
+        self.AttackButton.setEnabled(act)
 
+    def enable_targets(self, act: bool):
+        for i in range(len(self.room_info["geo"]) + len(self.room_info["aero"])):
+            self.findChild(QtWidgets.QPushButton, f"target_{i}").setEnabled(act)
 
-def handle_game():
-    while True:
-        receivation = receive()
-        if receivation == "!GAME_END":
-            print(receive())
-            break
-        elif receivation == "!INPUT":
-            action = input(receive())
-            send(action)
+    def action(self):
+        if self.sender().objectName() == "AttackButton":
+            send("attack")
+            answer = receive()
+            if answer == "!Action":
+                self.enable_buttons(False)
+                self.targets = []
+                self.update.receiving = True
+            elif answer == "!ERROR":
+                self.Error.setText("Error action!")
         else:
-            print(receivation)
+            send("ability")
+            answer = receive()
+            if answer == "!Action":
+                self.enable_buttons(False)
+                send(self.sender().text())
+                self.targets = []
+                self.update.receiving = True
+            elif answer == "!ERROR":
+                self.Error.setText("Error action!")
+
+    def add_target(self):
+        self.targets.append(self.chars[int(self.sender().objectName().split('_')[-1])].name)
+        self.TargetDelete.setEnabled(True)
+        if len(self.targets) == self.count:
+            self.enable_targets(False)
+            self.TargetConfirm.setEnabled(True)
+        self.TargetList.clear()
+        self.TargetList.addItems(self.targets)
+
+    def delete_target(self):
+        if self.TargetList.currentItem():
+            self.targets.remove(self.TargetList.currentItem().text())
+            self.enable_targets(True)
+            self.TargetConfirm.setEnabled(False)
+            if len(self.targets) < 1:
+                self.TargetDelete.setEnabled(False)
+            self.TargetList.clear()
+            self.TargetList.addItems(self.targets)
+
+    def confirm_target(self):
+        send_bytes(pickle.dumps(self.targets, 3))
+        self.targets = []
+        self.TargetList.clear()
+        self.TargetList.setEnabled(False)
+        self.TargetDelete.setEnabled(False)
+        self.TargetDelete.setEnabled(False)
+        self.TargetConfirm.setEnabled(False)
+        self.label.setText("")
+        self.Error.setText("")
+        self.update.receiving = True
+
+    def make_action(self, command):
+        self.thread.quit()
+        if command == "!MAKE_ACTION":
+            self.label.setText("Your turn")
+            self.enable_buttons(True)
+        elif command == "!CHOOSE_TARGET":
+            self.count = int(receive())
+            self.label.setText(f"Choose {self.count} target(-s)")
+            self.TargetList.setEnabled(True)
+            self.enable_targets(True)
 
 
 def show_main_widow(this):

@@ -258,9 +258,9 @@ def handle_room(number):
 
         for j, i in enumerate(rooms[number]):
             if (j + 1) % 2 == 0:
-                geo_team.append(i.y_char)
-            else:
                 aero_team.append(i.y_char)
+            else:
+                geo_team.append(i.y_char)
 
         game = Game(geo_team, aero_team, rooms[number])
         game.start()
