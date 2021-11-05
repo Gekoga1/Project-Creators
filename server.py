@@ -41,6 +41,8 @@ class User:
         self.y_char.name = info.name
         self.y_char.max_hp = info.max_hp
         self.y_char.max_mp = info.max_mp
+        self.y_char.hp = info.max_hp
+        self.y_char.mp = info.max_mp
         self.y_char.stats = info.stats
         self.y_char.weapon = self.inventory["weapon"][list(map(
             str, self.inventory["weapon"])).index(info.weapon)]
@@ -169,8 +171,8 @@ class Info:
 def handle_client(user):
     print(f"[NEW CONNECTION] {user.addr} connected.")
     print(f"threads {threading.active_count()}")
-    #for thread in threading.enumerate():
-    #    print(thread.name)
+    #   for thread in threading.enumerate():
+    #       print(thread.name)
 
     connected = True
     if user.y_char is None or user.y_id is None:
@@ -230,7 +232,6 @@ def handle_client(user):
                 else:
                     break
             else:
-                print("NO ROOM")
                 send("!False", user)
                 send("There are no open rooms", user)
 
