@@ -241,7 +241,7 @@ class Ui_MainWindow(object):
         self.HpValue.setMaximumSize(QtCore.QSize(44, 20))
         self.HpValue.setMinimum(5)
         self.HpValue.setMaximum(1000)
-        self.HpValue.setSingleStep(5)
+        self.HpValue.setSingleStep(10)
         self.HpValue.setProperty("value", 10)
         self.HpValue.setObjectName("HpValue")
         self.gridLayout_2.addWidget(self.HpValue, 4, 1, 1, 1)

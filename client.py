@@ -246,28 +246,43 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
                        self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
                        self.GeoValue.value(), self.AeroValue.value(),
-                       self.MpValue.value() // 5, self.HpValue.value() // 5])
+                       self.MpValue.value() // 5, self.HpValue.value() // 10])
 
-        if info.lvl - summery + 15 < 0:
-            self.sender().setValue(self.sender().value() + info.lvl - summery + 15)
+        if info.lvl - summery + 13 < 0:
+            self.sender().setValue(self.sender().value() + info.lvl - summery + 13)
             self.Points.setText("0")
         else:
-            self.Points.setText(str(info.lvl - summery + 15))
+            self.Points.setText(str(info.lvl - summery + 13))
 
     def hp_mp_change(self):
-        if self.sender().value() % 5 == 0:
-            summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
-                           self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
-                           self.GeoValue.value(), self.AeroValue.value(),
-                           self.MpValue.value() // 5, self.HpValue.value() // 5])
+        if self.sender().objectName() == "MpValue":
+            if self.sender().value() % 5 == 0:
+                summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
+                               self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
+                               self.GeoValue.value(), self.AeroValue.value(),
+                               self.MpValue.value() // 5, self.HpValue.value() // 10])
 
-            if info.lvl - summery + 15 < 0:
-                self.sender().setValue(self.sender().value() + info.lvl - summery + 15)
-                self.Points.setText("0")
+                if info.lvl - summery + 13 < 0:
+                    self.sender().setValue(self.sender().value() + info.lvl - summery + 13)
+                    self.Points.setText("0")
+                else:
+                    self.Points.setText(str(info.lvl - summery + 13))
             else:
-                self.Points.setText(str(info.lvl - summery + 15))
+                self.sender().setValue((self.sender().value() // 5) * 5)
         else:
-            self.sender().setValue((self.sender().value() // 5) * 5)
+            if self.sender().value() % 10 == 0:
+                summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
+                               self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
+                               self.GeoValue.value(), self.AeroValue.value(),
+                               self.MpValue.value() // 5, self.HpValue.value() // 10])
+
+                if info.lvl - summery + 13 < 0:
+                    self.sender().setValue(self.sender().value() + info.lvl - summery + 13)
+                    self.Points.setText("0")
+                else:
+                    self.Points.setText(str(info.lvl - summery + 13))
+            else:
+                self.sender().setValue((self.sender().value() // 10) * 10)
 
     def save_point(self):
         info.name = self.Name.text()

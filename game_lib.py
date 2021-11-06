@@ -772,7 +772,7 @@ class PoisonTouch(Ability):
             targets = self.choose(match)
 
             for i in targets[0]:
-                i.get_damage(user.intellect * 0.5 * user.geo, self, type_of='special')
+                i.get_damage(user.intellect * 0.5 * user.geo * 0.3, self, type_of='special')
                 if i.spell_defence == 0:
                     i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
 
