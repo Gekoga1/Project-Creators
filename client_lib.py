@@ -12,7 +12,7 @@ import struct
 HEADER = 64
 PORT = 5050
 FORMAT = 'utf-8'
-SERVER = "25.73.197.223"    #input("Server IP.v4: ")
+SERVER = input("Server IP.v4: ")
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

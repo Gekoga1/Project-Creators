@@ -13,7 +13,7 @@ import struct
 
 HEADER = 64
 PORT = 5050
-SERVER = "25.73.197.223"   #input("Your IP.v4: ")
+SERVER = input("Your IP.v4: ")
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 rooms = []
