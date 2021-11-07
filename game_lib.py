@@ -8,11 +8,12 @@ import pickle
 from collections import defaultdict
 from math import ceil
 import base64
+import struct
 
 
 HEADER = 64
 PORT = 5050
-SERVER = input("Your IP.v4: ")
+SERVER = "25.73.197.223"   #input("Your IP.v4: ")
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 rooms = []
@@ -76,143 +77,61 @@ def sqlite_update(request, conditions) -> None:
     con.close()
 
 
-def send(msg, user):
-    try:
-        message = msg.encode(FORMAT)
-        msg_length = len(message)
-        send_length = str(msg_length).encode(FORMAT)
-        send_length += b' ' * (HEADER - len(send_length))
-        user.conn.send(send_length)
-        user.conn.send(message)
-        if user.conn.recv(2).decode(FORMAT) == "!1":
-            pass
-        else:
-            print("error")
-    except ConnectionError or OSError:
-        try:
-            user.conn.close()
-            raise SystemExit
-        except OSError:
-            raise SystemExit
+def send(msg, sock):
+    # Prefix each message with a 4-byte length (network byte order)
+    msg = struct.pack('>I', len(msg)) + msg
+    sock.conn.sendall(msg)
 
 
-def send_int(msg, user):
-    try:
-        message = msg.encode(FORMAT)
-        user.conn.send(message)
-        if user.conn.recv(2).decode(FORMAT) == "!1":
-            pass
-        else:
-            print("error")
-    except ConnectionError or OSError:
-        try:
-            user.conn.close()
-            raise SystemExit
-        except OSError:
-            raise SystemExit
+def receive(sock):
+    # Read message length and unpack it into an integer
+    raw_msglen = recvall(4, sock)
+    if not raw_msglen:
+        return None
+    msglen = struct.unpack('>I', raw_msglen)[0]
+    # Read the message data
+
+    return recvall(msglen, sock)
 
 
-def send_bytes(msg, user):
-    try:
-        msg_length = len(msg)
-        send_length = str(msg_length).encode(FORMAT)
-        send_length += b' ' * (HEADER - len(send_length))
-        user.conn.send(send_length)  # msg with length of next msg
-        user.conn.send(msg)
-        if user.conn.recv(2).decode(FORMAT) == "!1":
-            pass
-        else:
-            print("error")
-    except ConnectionError or OSError:
-        try:
-            user.conn.close()
-            raise SystemExit
-        except OSError:
-            raise SystemExit
-
-
-def send_image(image, user):
-    count = ceil(sys.getsizeof(image) / 512)
-    send(str(count), user)
-
-    for i in range(count):
-        if i == count - 1:
-            send_bytes(image[512 * i:], user)
-        else:
-            send_bytes(image[512 * i:512 * (i + 1)], user)
-
-
-def receive(user):
-    try:
-        msg_length = user.conn.recv(HEADER).decode(FORMAT)
-        if msg_length:
-            msg_length = int(msg_length)
-            msg = user.conn.recv(msg_length).decode(FORMAT)
-            if msg == "!DISCONNECT":
-                user.conn.close()
-                raise SystemExit
-            user.conn.send("!1".encode(FORMAT))
-            print(user.addr, msg)
-            return msg
-    except ConnectionError or OSError:
-        try:
-            user.conn.close()
-            raise SystemExit
-        except OSError:
-            raise SystemExit
-
-
-def receive_bytes(user):
-    try:
-        msg_length = user.conn.recv(HEADER).decode(FORMAT)
-        if msg_length:
-            msg_length = int(msg_length)
-            msg = user.conn.recv(msg_length)
-            if msg == "!DISCONNECT":
-                user.conn.close()
-                raise SystemExit
-            user.conn.send("!1".encode(FORMAT))
-            return msg
-    except ConnectionError or OSError:
-        try:
-            user.conn.close()
-            raise SystemExit
-        except OSError:
-            raise SystemExit
-
-
-def receive_image(user):
-    book = b''
-    for i in range(int(receive(user))):
-        book += receive_bytes(user)
-    return book
+def recvall(n, sock):
+    # Helper function to recv n bytes or return None if EOF is hit
+    data = bytearray()
+    while len(data) < n:
+        packet = sock.conn.recv(n - len(data))
+        if not packet:
+            return None
+        data.extend(packet)
+    if data == b"!DISCONNECT":
+        raise SystemExit
+    return data
 
 
 def target_action(user):
-    send("!INPUT", user)
-    send("!MAKE_ACTION", user)
+    send(b"!INPUT", user)
+    send(b"!MAKE_ACTION", user)
     return receive(user)
 
 
 def target_choose(msg, user, match):
-    send("!INPUT", user)
-    send("!CHOOSE_TARGET", user)
-    send(str(msg), user)
-    targets = pickle.loads(receive_bytes(user))
+    send(b"!INPUT", user)
+    send(b"!CHOOSE_TARGET", user)
+    send(str(msg).encode(FORMAT), user)
+    targets = pickle.loads(receive(user))
     names = list(map(str, match.characters))
     targets = list(map(lambda x: names.index(x), targets))
     return targets
 
 
 def registration(user, uid):
-    msg = receive(user)
+    msg = receive(user).decode(FORMAT)
     msg = msg.split(';')
 
     result = sqlite_request("""SELECT id FROM Account
                                 WHERE name = ?""", (msg[0],))
 
     if len(result) > 0:
-        send("!False", user)
+        send(b"!False", user)
         return False
     else:
 
@@ -231,14 +150,14 @@ def registration(user, uid):
         user.inventory["weapon"] = [1, 2, 3]
         user.inventory["armor"] = [2, 3]
 
-        send(str(new_uid), user)
+        send(str(new_uid).encode(FORMAT), user)
 
         return create_character(user)
 
 
 def login(user, data=False):
     if not data:
-        msg = receive(user)
+        msg = receive(user).decode(FORMAT)
         msg = msg.split(';')
     else:
         msg = data
@@ -246,7 +165,7 @@ def login(user, data=False):
     try:
         result = sqlite_request("""SELECT id, Lvl FROM Account
                                     WHERE name = ? AND password = ?""", (msg[0], msg[1]))[0]
-        send("!True", user)
+        send(b"!True", user)
 
         y_id = result[0]
         user.lvl = result[1]
@@ -279,7 +198,7 @@ def login(user, data=False):
             return create_character(user)
 
     except IndexError:
-        send("!False", user)
+        send(b"!False", user)
         return False
 
 
@@ -302,7 +221,7 @@ def create_room(user, value):
         if len(rooms[i]) < 1:
             rooms.remove(i)
     rooms.append(Room(value, [user]))
-    send_bytes(pickle.dumps([1, value], 3), user)
+    send(pickle.dumps([1, value], 3), user)
     return len(rooms) - 1
 
 
@@ -314,14 +233,16 @@ def connect_room(user):
             send_room("!NEW_PLAYER", rooms[i])
             send_room(str(len(rooms[i]) + 1), rooms[i])
             rooms[i].add_member(user)
-            send("!True", user)
-            send_bytes(pickle.dumps([len(rooms[i]), rooms[i].value], 3), user)
+            send(b"!True", user)
+            send(pickle.dumps([len(rooms[i]), rooms[i].value], 3), user)
             return i
     return None
 
 
-def send_room(msg, room):
+def send_room(msg, room, with_encode=True):
     for_remove = []
+    if with_encode:
+        msg = msg.encode(FORMAT)
 
     for i in room:
         try:
@@ -352,12 +273,12 @@ def get_room_info(room):
 def send_room_info(room, user):
     book = get_room_info(room)
     for i in book.keys():
-        send_int(str(len(book[i])), user)
+        send(str(len(book[i])).encode(FORMAT), user)
         for j in book[i]:
             img = j.image
             j.image = None
-            send_bytes(pickle.dumps(j), user)
-            send_image(img,  user)
+            send(pickle.dumps(j), user)
+            send(img,  user)
     return True
 
 
@@ -596,47 +517,47 @@ class Character:
     def make_action(self):
         if self.alive:
             action = target_action(self.owner).lower()
-            if action == 'attack':
-                send("!Action", self.owner)
+            if action == b'attack':
+                send(b"!Action", self.owner)
                 try:
                     choose = target_choose(1, self.owner, self.match)[0]
                     self.attack(self.match.characters[choose])
                     self.match.send_room(f"{str(self).capitalize()} оканчивает ход", with_update=True)
                 except IndexError:
-                    send("!ERROR", self.owner)
-                    send('Error action', self.owner)
+                    send(b"!ERROR", self.owner)
+                    send(b'Error action', self.owner)
                     self.make_action()
                 except ValueError:
-                    send("!ERROR", self.owner)
-                    send('Error action', self.owner)
+                    send(b"!ERROR", self.owner)
+                    send(b'Error action', self.owner)
                     self.make_action()
 
-            elif action == 'ability':
-                send("!Action", self.owner)
+            elif action == b'ability':
+                send(b"!Action", self.owner)
                 if len(self.abilities) > 0:
                     try:
-                        choose = receive(self.owner)
+                        choose = receive(self.owner).decode(FORMAT)
                         choose = list(map(str, self.abilities)).index(choose)
                         if not self.abilities[choose].usage(self, self.match):
-                            send("!ERROR", self.owner)
-                            send("You can't do that", self.owner)
+                            send(b"!ERROR", self.owner)
+                            send(b"You can't do that", self.owner)
                             self.make_action()
                         else:
                             self.match.send_room(f"{str(self).capitalize()} оканчивает ход", with_update=True)
                     except IndexError:
-                        send("!ERROR", self.owner)
-                        send('Error action', self.owner)
+                        send(b"!ERROR", self.owner)
+                        send(b'Error action', self.owner)
                         self.make_action()
                     except ValueError:
-                        send("!ERROR", self.owner)
-                        send('Error action', self.owner)
+                        send(b"!ERROR", self.owner)
+                        send(b'Error action', self.owner)
                         self.make_action()
                 else:
-                    send("!ERROR", self.owner)
-                    send('Error action', self.owner)
+                    send(b"!ERROR", self.owner)
+                    send(b'Error action', self.owner)
                     self.make_action()
             else:
-                send("!ERROR", self.owner)
+                send(b"!ERROR", self.owner)
                 self.make_action()
 
 
@@ -763,11 +684,11 @@ class Ability:
             book = target_choose(self.number_of_choose, self.owner, self.match)
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
-            send("!ERROR", self.owner)
-            send('Wrong Index', self.owner)
+            send(b"!ERROR", self.owner)
+            send(b'Wrong Index', self.owner)
         except ValueError:
-            send("!ERROR", self.owner)
-            send('Input Only integer numbers', self.owner)
+            send(b"!ERROR", self.owner)
+            send(b'Input Only integer numbers', self.owner)
 
     def usage(self, user, match):
         pass
@@ -789,7 +710,7 @@ class PoisonTouch(Ability):
             targets = self.choose(match)
 
             for i in targets[0]:
-                i.get_damage(user.intellect * 0.5 * user.geo, self, type_of='special')
+                i.get_damage(user.intellect * user.geo * 0.05, self, type_of='special')
                 if i.spell_defence == 0:
                     i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
 
@@ -884,10 +805,10 @@ class Game:
             info = self.get_info()
             send_room("!LOG", self.room)
             for i in self.room.members:
-                send_bytes(pickle.dumps(self.log, 3), i)
+                send(pickle.dumps(self.log, 3), i)
                 time.sleep(0.1)
                 if with_update:
-                    send_bytes(pickle.dumps(info, 3), i)
+                    send(pickle.dumps(info, 3), i)
 
     def get_info(self):
         book = []

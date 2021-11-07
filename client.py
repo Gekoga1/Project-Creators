@@ -91,29 +91,29 @@ class Login_screen(QMainWindow, Ui_LoginWindow):
         self.Register.clicked.connect(self.register)
 
     def register(self):
-        send("!REGISTRATION")
-        send(';'.join([self.Name.text(), self.Password.text()]))
+        send(b"!REGISTRATION")
+        send(';'.join([self.Name.text(), self.Password.text()]).encode(FORMAT))
         answer = receive()
 
-        if answer == "!False":
+        if answer == b"!False":
             self.ErrorLable.setText("Try another Name")
         else:
             global info
-            info = pickle.loads(receive_bytes())
-            info.image = receive_image()
+            info = pickle.loads(receive())
+            info.image = receive()
             show_main_widow(self)
 
     def login(self):
-        send("!LOGIN")
-        send(';'.join([self.Name.text(), self.Password.text()]))
+        send(b"!LOGIN")
+        send(';'.join([self.Name.text(), self.Password.text()]).encode(FORMAT))
         answer = receive()
 
-        if answer == "!False":
+        if answer == b"!False":
             self.ErrorLable.setText("Where is no such account")
         else:
             global info
-            info = pickle.loads(receive_bytes())
-            info.image = receive_image()
+            info = pickle.loads(receive())
+            info.image = receive()
             show_main_widow(self)
 
 
@@ -155,17 +155,17 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         self.LoadImg.clicked.connect(self.load_avatar)
 
     def create_room(self):
-        send("!CREATE_ROOM")
-        send(str((self.Value.value())))
+        send(b"!CREATE_ROOM")
+        send(str((self.Value.value())).encode(FORMAT))
         show_waiting_widow(self)
 
     def connect_room(self):
-        send("!CONNECT_ROOM")
+        send(b"!CONNECT_ROOM")
         answer = receive()
-        if answer == "!True":
+        if answer == b"!True":
             show_waiting_widow(self)
-        elif answer == "!False":
-            self.ErrorLable.setText(receive())
+        elif answer == b"!False":
+            self.ErrorLable.setText(receive().decode(FORMAT))
 
     def update_info(self):
         global info
@@ -301,9 +301,9 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         info.armor = self.ArmorBox.currentText()
         info.image = None
 
-        send("!SAVE_POINT")
-        send_bytes(pickle.dumps(info, 3))
-        send_image(base64.encodebytes(self.pixmap))
+        send(b"!SAVE_POINT")
+        send(pickle.dumps(info, 3))
+        send(base64.encodebytes(self.pixmap))
         info.image = self.pixmap
 
     def current_ability(self):
@@ -342,9 +342,9 @@ class UpdateThread(QObject):
     def run(self):
         while True:
             rec = receive()
-            if rec == "!NEW_PLAYER":
-                self.new_data.emit(int(receive()))
-            elif rec == "!START":
+            if rec == b"!NEW_PLAYER":
+                self.new_data.emit(int(receive().decode(FORMAT)))
+            elif rec == b"!START":
                 self.game_start.emit()
                 break
 
@@ -379,12 +379,12 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
 
         book = defaultdict(list)
         for i in ["geo", "aero"]:
-            rec = receive_int()
+            rec = receive().decode(FORMAT)
             count = int(rec)
             if count >= 1:
                 for j in range(count):
-                    char = pickle.loads(receive_bytes())
-                    char.image = base64.decodebytes(receive_image())
+                    char = pickle.loads(receive())
+                    char.image = base64.decodebytes(receive())
                     book[i].append(char)
 
         for i in ["geo", "aero"]:
@@ -727,13 +727,13 @@ class ControlThread(QObject):
         while True:
             if self.receiving:
                 rec = receive()
-                if rec == "!LOG":
-                    self.log.emit(pickle.loads(receive_bytes()))
+                if rec == b"!LOG":
+                    self.log.emit(pickle.loads(receive()))
                     self.receiving = False
-                elif rec == "!INPUT":
-                    self.input.emit(receive())
+                elif rec == b"!INPUT":
+                    self.input.emit(receive().decode(FORMAT))
                     self.receiving = False
-                elif rec == "!GAME_END":
+                elif rec == b"!GAME_END":
                     self.end.emit()
                     self.receiving = False
 
@@ -804,7 +804,7 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.label.setText('')
         self.Log.clear()
         self.Log.addItems(items)
-        data = pickle.loads(receive_bytes())
+        data = pickle.loads(receive())
         self.info_unpack(data)
         self.update.receiving = True
 
@@ -833,23 +833,23 @@ class Battle_screen(QMainWindow, Ui_Battle):
 
     def action(self):
         if self.sender().objectName() == "AttackButton":
-            send("attack")
+            send(b"attack")
             answer = receive()
-            if answer == "!Action":
+            if answer == b"!Action":
                 self.enable_buttons(False)
                 self.targets = []
                 self.update.receiving = True
-            elif answer == "!ERROR":
+            elif answer == b"!ERROR":
                 self.Error.setText("Error action!")
         else:
-            send("ability")
+            send(b"ability")
             answer = receive()
-            if answer == "!Action":
+            if answer == b"!Action":
                 self.enable_buttons(False)
-                send(self.sender().text())
+                send(self.sender().text().encode(FORMAT))
                 self.targets = []
                 self.update.receiving = True
-            elif answer == "!ERROR":
+            elif answer == b"!ERROR":
                 self.Error.setText("Error action!")
 
     def add_target(self):
@@ -872,7 +872,7 @@ class Battle_screen(QMainWindow, Ui_Battle):
             self.TargetList.addItems(self.targets)
 
     def confirm_target(self):
-        send_bytes(pickle.dumps(self.targets, 3))
+        send(pickle.dumps(self.targets, 3))
         self.targets = []
         self.TargetList.clear()
         self.TargetList.setEnabled(False)
@@ -889,7 +889,7 @@ class Battle_screen(QMainWindow, Ui_Battle):
             self.label.setText("Your turn")
             self.enable_buttons(True)
         elif command == "!CHOOSE_TARGET":
-            self.count = int(receive())
+            self.count = int(receive().decode(FORMAT))
             self.label.setText(f"Choose {self.count} target(-s)")
             self.TargetList.setEnabled(True)
             self.enable_targets(True)
@@ -908,7 +908,7 @@ def show_battle_widow(this):
 
 def show_waiting_widow(this):
     this.hide()
-    waiting_window.update_info(*pickle.loads(receive_bytes()))
+    waiting_window.update_info(*pickle.loads(receive()))
     waiting_window.show()
 
 
@@ -926,4 +926,4 @@ if __name__ == '__main__':
         login_window.show()
         sys.exit(app.exec_())
     except SystemExit:
-        send("!DISCONNECT")
+        send(b"!DISCONNECT")

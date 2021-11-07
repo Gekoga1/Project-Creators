@@ -192,7 +192,7 @@ def handle_client(user):
             user.unpack_inventory()
             user.unpack_image(sqlite_request("""SELECT ImageId FROM Account
                                                             WHERE id = ?""", (user.y_id,))[0][0])
-            send_bytes(pickle.dumps(user.get_info(), 3), user)
+            send(pickle.dumps(user.get_info(), 3), user)
             logined = True
 
     timer = time.time()
@@ -202,11 +202,11 @@ def handle_client(user):
             connected = False
 
         msg = receive(user)
-        if msg == "!DISCONNECT":
+        if msg == b"!DISCONNECT":
             connected = False
             logined = False
 
-        elif msg == "!REGISTRATION" and not logined:
+        elif msg == b"!REGISTRATION" and not logined:
             timer = time.time()
             info = registration(user, uid)
             if info:
@@ -215,11 +215,11 @@ def handle_client(user):
                 user.y_char.owner = user
                 user.unpack_inventory()
                 user.unpack_image(1)
-                send_bytes(pickle.dumps(user.get_info(), 3), user)
-                send_image(user.image, user)
+                send(pickle.dumps(user.get_info(), 3), user)
+                send(user.image, user)
                 logined = True
 
-        elif msg == "!LOGIN" and not logined:
+        elif msg == b"!LOGIN" and not logined:
             timer = time.time()
             info = login(user)
             if info:
@@ -228,15 +228,15 @@ def handle_client(user):
                 user.unpack_inventory()
                 user.unpack_image(sqlite_request("""SELECT ImageId FROM Account
                                                     WHERE id = ?""", (user.y_id,))[0][0])
-                send_bytes(pickle.dumps(user.get_info(), 3), user)
-                send_image(user.image, user)
+                send(pickle.dumps(user.get_info(), 3), user)
+                send(user.image, user)
                 logined = True
 
-        elif msg == "!CREATE_ROOM" and logined:
-            create_room(user, int(receive(user)))
+        elif msg == b"!CREATE_ROOM" and logined:
+            create_room(user, int(receive(user).decode(FORMAT)))
             break
 
-        elif msg == "!CONNECT_ROOM" and logined:
+        elif msg == b"!CONNECT_ROOM" and logined:
             timer = time.time()
             room_addr = connect_room(user)
             if room_addr is not None:
@@ -247,13 +247,13 @@ def handle_client(user):
                 else:
                     break
             else:
-                send("!False", user)
-                send("There are no open rooms", user)
+                send(b"!False", user)
+                send(b"There are no open rooms", user)
 
-        elif msg == "!SAVE_POINT":
+        elif msg == b"!SAVE_POINT":
             timer = time.time()
-            user.unpack_info(pickle.loads(receive_bytes(user)))
-            user.image = receive_image(user)
+            user.unpack_info(pickle.loads(receive(user)))
+            user.image = receive(user)
             user.update_db()
 
     if not connected:
@@ -297,7 +297,7 @@ def handle_room(number):
 
         for i in rooms[number]:
             i.update_base_db()
-            send("!GAME_END", i)
+            send(b"!GAME_END", i)
 
         rooms.remove(rooms[number])
     except SystemExit:
