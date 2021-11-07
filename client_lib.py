@@ -40,6 +40,7 @@ def send_bytes(msg):
         send_length = str(msg_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)  # msg with length of next msg
+        time.sleep(0.1)
         client.send(msg)
         if client.recv(2).decode(FORMAT) == "!1":
             pass
@@ -47,17 +48,6 @@ def send_bytes(msg):
             print("error")
     except ConnectionError:
         raise SystemExit
-
-
-def send_image(image):
-    count = ceil(sys.getsizeof(image) / 2048)
-    send(str(count))
-
-    for i in range(count):
-        if i == count - 1:
-            send_bytes(image[2048 * i:])
-        else:
-            send_bytes(image[2048 * i:2048 * (i + 1)])
 
 
 def receive():
@@ -89,20 +79,16 @@ def receive_bytes():
     try:
         while True:
             msg_length = client.recv(HEADER).decode(FORMAT)
+            time.sleep(0.1)
             if msg_length:
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length)
+                time.sleep(0.1)
                 client.send("!1".encode(FORMAT))
+                print("!1")
                 return msg
     except ConnectionError:
         raise SystemExit
-
-
-def receive_image():
-    book = b''
-    for i in range(int(receive())):
-        book += receive_bytes()
-    return book
 
 
 def create_character():

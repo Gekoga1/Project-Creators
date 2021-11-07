@@ -216,7 +216,7 @@ def handle_client(user):
                 user.unpack_inventory()
                 user.unpack_image(1)
                 send_bytes(pickle.dumps(user.get_info(), 3), user)
-                send_image(user.image, user)
+                send_bytes(user.image, user)
                 logined = True
 
         elif msg == "!LOGIN" and not logined:
@@ -229,7 +229,7 @@ def handle_client(user):
                 user.unpack_image(sqlite_request("""SELECT ImageId FROM Account
                                                     WHERE id = ?""", (user.y_id,))[0][0])
                 send_bytes(pickle.dumps(user.get_info(), 3), user)
-                send_image(user.image, user)
+                send_bytes(user.image, user)
                 logined = True
 
         elif msg == "!CREATE_ROOM" and logined:
@@ -253,7 +253,7 @@ def handle_client(user):
         elif msg == "!SAVE_POINT":
             timer = time.time()
             user.unpack_info(pickle.loads(receive_bytes(user)))
-            user.image = receive_image(user)
+            user.image = receive_bytes(user)
             user.update_db()
 
     if not connected:
