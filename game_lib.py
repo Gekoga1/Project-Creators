@@ -11,7 +11,7 @@ import base64
 
 
 HEADER = 64
-PORT = 41480
+PORT = 5050
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
@@ -78,15 +78,33 @@ def sqlite_update(request, conditions) -> None:
 
 def send(msg, user):
     try:
-        print(msg)
         message = msg.encode(FORMAT)
         msg_length = len(message)
         send_length = str(msg_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
-        user.conn.send(send_length)    # msg with length of next msg
+        print(send_length)
+        user.conn.send(send_length)
+        print(message, '->', user)
         user.conn.send(message)
         if user.conn.recv(2).decode(FORMAT) == "!1":
-            pass
+            print("!2")
+        else:
+            print("error")
+    except ConnectionError or OSError:
+        try:
+            user.conn.close()
+            raise SystemExit
+        except OSError:
+            raise SystemExit
+
+
+def send_int(msg, user):
+    try:
+        message = msg.encode(FORMAT)
+        print(message, '->', user)
+        user.conn.send(message)
+        if user.conn.recv(2).decode(FORMAT) == "!1":
+            print("!2")
         else:
             print("error")
     except ConnectionError or OSError:
@@ -221,9 +239,12 @@ def registration(user, uid):
         return create_character(user)
 
 
-def login(user):
-    msg = receive(user)
-    msg = msg.split(';')
+def login(user, data=False):
+    if not data:
+        msg = receive(user)
+        msg = msg.split(';')
+    else:
+        msg = data
 
     try:
         result = sqlite_request("""SELECT id, Lvl FROM Account
@@ -334,7 +355,7 @@ def get_room_info(room):
 def send_room_info(room, user):
     book = get_room_info(room)
     for i in book.keys():
-        send(str(len(book[i])), user)
+        send_int(str(len(book[i])), user)
         for j in book[i]:
             img = j.image
             j.image = None
@@ -772,7 +793,7 @@ class PoisonTouch(Ability):
             targets = self.choose(match)
 
             for i in targets[0]:
-                i.get_damage(user.intellect * 0.5 * user.geo * 0.3, self, type_of='special')
+                i.get_damage(user.intellect * 0.5 * user.geo, self, type_of='special')
                 if i.spell_defence == 0:
                     i.apply_effect((Poisoned, 2, 3, 1, 2, self.match))
 
@@ -884,13 +905,13 @@ class Game:
         geo = (not len(list(filter(lambda z: z.alive, self.geo_team))) > 0)
         aero = (not len(list(filter(lambda z: z.alive, self.aero_team))) > 0)
         if geo and aero:
-            self.send_room('both teams are dead')
+            self.send_room('both teams are dead', with_update=True)
             return False
         elif geo:
-            self.send_room('geo team are dead')
+            self.send_room('geo team are dead', with_update=True)
             return False
         elif aero:
-            self.send_room('aero team are dead')
+            self.send_room('aero team are dead', with_update=True)
             return False
         else:
             return True
@@ -933,6 +954,8 @@ class Game:
                 character.make_action()
             self.round_end()
 
+        return [self.geo_team, self.aero_team]
+
 
 a = (Character, 'Anthem', 120, 120, 15, 15, [7, 5, 2, 0, 0, 0, 0, 4],
      Weapon('Sword with troll', 'legendary', 10000000 ** 0, type_of='melee'),
@@ -943,27 +966,3 @@ b = (Character, 'Mehtna', 75, 75, 20, 20, [3, 2, 5, 3, 2, 2, 3, 7],
      Weapon('Spiky Tooth', 'uncommon', 3, type_of='magick', attack_effect=(Poisoned, 1, 1, 1, 6)),
      Armor('Spider skin', 'rare', [1, 3, 3, 0, 0, 0, 0, 2], 12, 6),
      [(PoisonTouch, "geo", 15, 0, 2), (Splash, "physical", 5, 2, 1)])
-
-a = a[0](*a[1:])
-b = b[0](*b[1:])
-
-a = pickle.dumps(a, 3)
-
-b = pickle.dumps(b, 3)
-
-"""a3 = Character('Grusha', 500, 500, 0, 0, [1, 2, 2, 3, 2, 2, 3, 2],
-               [Weapon('Sword', 'common', 2),
-                Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)], [])
-
-b = Character('Assault1', 100, 100, 100, 100, [3, 2, 2, 3, 2, 2, 3, 4],
-              [Weapon('Sword', 'common', 2, attack_effect=(Poisoned, 2, 1, 1, 9)),
-               Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)],
-              [(PoisonTouch, 15, 1, 2), (PoisonTouch, 30, 2, 3)])
-b2 = Character('Assault2', 100, 100, 100, 100, [3, 2, 10, 3, 2, 2, 3, 5],
-               [Weapon('Sword', 'common', 2, attack_effect=(Poisoned, 3, 3, 1, 2)),
-                Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)],
-               [(PoisonTouch, 15, 1, 2), (PoisonTouch, 30, 2, 3)])
-b3 = Character('Assault3', 100, 100, 100, 100, [3, 2, 2, 3, 2, 2, 3, 4],
-               [Weapon('Sword', 'common', 2, attack_effect=(Poisoned, 3, 6, 1, 1)),
-                Armor('All in one', 'rare', [1, 1, 1, 1, 1, 1, 1, 1], 5, 5)],
-               [(PoisonTouch, 15, 1, 2), (PoisonTouch, 30, 2, 3)])"""

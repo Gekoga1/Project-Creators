@@ -9,7 +9,7 @@ import threading
 
 
 HEADER = 64
-PORT = 41480
+PORT = 5050
 FORMAT = 'utf-8'
 SERVER = '192.168.1.207'
 ADDR = (SERVER, PORT)
@@ -63,12 +63,26 @@ def send_image(image):
 def receive():
     try:
         while True:
-            msg_length = client.recv(HEADER).decode(FORMAT)
+            msg_length = client.recv(HEADER)
+            print(msg_length)
+            msg_length = msg_length.decode(FORMAT)
             if msg_length:
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length).decode(FORMAT)
                 client.send("!1".encode(FORMAT))
+                print(msg, '<-')
                 return msg
+    except ConnectionError:
+        raise SystemExit
+
+
+def receive_int():
+    try:
+        while True:
+            msg = client.recv(1)
+            msg = msg.decode(FORMAT)
+            client.send("!1".encode(FORMAT))
+            return msg
     except ConnectionError:
         raise SystemExit
 

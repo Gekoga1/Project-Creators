@@ -83,6 +83,7 @@ class User:
     def update_db(self):
         owner = self.y_char.owner
         self.y_char.owner = None
+        print(self.y_char)
         sqlite_update("""UPDATE Character
                         SET Name = ?, Pickle = ?
                         WHERE CharacterId = ?""", (self.y_char.name, pickle.dumps(self.y_char, 3), self.y_id))
@@ -98,6 +99,13 @@ class User:
                         WHERE Pickle = ?)
                         WHERE id = ?""", (self.image, self.y_id))
         self.y_char.owner = owner
+
+    def update_base_db(self):
+        sqlite_update("""UPDATE Account
+                        SET Lvl = ?
+                        WHERE id = ?""", (self.lvl, self.y_id))
+        print(sqlite_request("""SELECT Lvl FROM Account
+                                WHERE id = ?""", (self.y_id, ))[0][0])
 
 
 class Info_Weapon:
@@ -175,10 +183,18 @@ def handle_client(user):
     #       print(thread.name)
 
     connected = True
-    if user.y_char is None or user.y_id is None:
+    if user.y_char is None:
         logined = False
     else:
-        logined = True
+        info = login(user, [user.name, user.password])
+        if info:
+            user.y_id, user.y_char = info[0], pickle.loads(info[1])
+            user.y_char.owner = user
+            user.unpack_inventory()
+            user.unpack_image(sqlite_request("""SELECT ImageId FROM Account
+                                                            WHERE id = ?""", (user.y_id,))[0][0])
+            send_bytes(pickle.dumps(user.get_info(), 3), user)
+            logined = True
 
     timer = time.time()
 
@@ -264,23 +280,34 @@ def handle_room(number):
                 geo_team.append(i.y_char)
 
         game = Game(geo_team, aero_team, rooms[number])
-        game.start()
+        teams = game.start()
 
-        send_room("!GAME_END", rooms[number])
-        send_room("Game ended", rooms[number])
+        geo = (not len(list(filter(lambda z: z.alive, teams[0]))) > 0)
+        aero = (not len(list(filter(lambda z: z.alive, teams[1]))) > 0)
+        if geo and aero:
+            for i in teams[0]:
+                i.owner.lvl += 1
+            for i in teams[1]:
+                i.owner.lvl += 1
+        elif geo:
+            for i in teams[1]:
+                i.owner.lvl += 1
+        elif aero:
+            for i in teams[0]:
+                print(i, i.owner)
+                i.owner.lvl += 1
+                print(i.owner.lvl)
 
         for i in rooms[number]:
-            thread = threading.Thread(target=handle_client, args=(i,))
-            thread.start()
+            print(i)
+            print(i.lvl)
+            i.update_base_db()
+            send("!GAME_END", i)
 
         rooms.remove(rooms[number])
     except SystemExit:
         send_room("!GAME_END", rooms[number])
         send_room("Somebody left", rooms[number])
-
-        for i in rooms[number]:
-            thread = threading.Thread(target=handle_client, args=(i,))
-            thread.start()
 
         rooms.remove(rooms[number])
 

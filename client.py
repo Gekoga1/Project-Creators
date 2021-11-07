@@ -179,8 +179,6 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         self.WeaponBox.setCurrentText(info.weapon.name)
         self.ArmorBox.setCurrentText(info.armor.name)
 
-        self.Points.setText(str(info.lvl - sum(info.stats) + 7))
-
         self.StrValue.setValue(info.stats[0])
         self.AgilityValue.setValue(info.stats[1])
         self.IntValue.setValue(info.stats[2])
@@ -191,6 +189,13 @@ class Main_screen(QMainWindow, Ui_MainWindow):
         self.AeroValue.setValue(info.stats[7])
         self.HpValue.setValue(info.max_hp)
         self.MpValue.setValue(info.max_mp)
+
+        summery = sum([self.StrValue.value(), self.AgilityValue.value(), self.IntValue.value(),
+                       self.InitValue.value(), self.PyroValue.value(), self.AquaValue.value(),
+                       self.GeoValue.value(), self.AeroValue.value(),
+                       self.MpValue.value() // 5, self.HpValue.value() // 10])
+
+        self.Points.setText(str(info.lvl - summery + 13))
 
         for j, i in enumerate(info.abilities):
             self.findChild(QLabel, f"Ability{j + 1}").setText(str(i))
@@ -374,7 +379,7 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
 
         book = defaultdict(list)
         for i in ["geo", "aero"]:
-            rec = receive()
+            rec = receive_int()
             count = int(rec)
             if count >= 1:
                 for j in range(count):
@@ -792,6 +797,7 @@ class Battle_screen(QMainWindow, Ui_Battle):
         self.thread.started.connect(self.update.run)
         self.update.log.connect(self.log_unpack)
         self.update.input.connect(self.make_action)
+        self.update.end.connect(self.back_to_main)
         self.thread.start()
 
     def log_unpack(self, items):
@@ -801,6 +807,9 @@ class Battle_screen(QMainWindow, Ui_Battle):
         data = pickle.loads(receive_bytes())
         self.info_unpack(data)
         self.update.receiving = True
+
+    def back_to_main(self):
+        pass
 
     def info_unpack(self, data):
         for j, i in enumerate(data):
@@ -899,8 +908,8 @@ def show_battle_widow(this):
 
 def show_waiting_widow(this):
     this.hide()
-    waiting_window.show()
     waiting_window.update_info(*pickle.loads(receive_bytes()))
+    waiting_window.show()
 
 
 if __name__ == '__main__':
