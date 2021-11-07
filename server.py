@@ -83,7 +83,6 @@ class User:
     def update_db(self):
         owner = self.y_char.owner
         self.y_char.owner = None
-        print(self.y_char)
         sqlite_update("""UPDATE Character
                         SET Name = ?, Pickle = ?
                         WHERE CharacterId = ?""", (self.y_char.name, pickle.dumps(self.y_char, 3), self.y_id))
@@ -294,13 +293,9 @@ def handle_room(number):
                 i.owner.lvl += 1
         elif aero:
             for i in teams[0]:
-                print(i, i.owner)
                 i.owner.lvl += 1
-                print(i.owner.lvl)
 
         for i in rooms[number]:
-            print(i)
-            print(i.lvl)
             i.update_base_db()
             send("!GAME_END", i)
 

@@ -64,13 +64,11 @@ def receive():
     try:
         while True:
             msg_length = client.recv(HEADER)
-            print(msg_length)
             msg_length = msg_length.decode(FORMAT)
             if msg_length:
                 msg_length = int(msg_length)
                 msg = client.recv(msg_length).decode(FORMAT)
                 client.send("!1".encode(FORMAT))
-                print(msg, '<-')
                 return msg
     except ConnectionError:
         raise SystemExit

@@ -82,12 +82,10 @@ def send(msg, user):
         msg_length = len(message)
         send_length = str(msg_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
-        print(send_length)
         user.conn.send(send_length)
-        print(message, '->', user)
         user.conn.send(message)
         if user.conn.recv(2).decode(FORMAT) == "!1":
-            print("!2")
+            pass
         else:
             print("error")
     except ConnectionError or OSError:
@@ -101,10 +99,9 @@ def send(msg, user):
 def send_int(msg, user):
     try:
         message = msg.encode(FORMAT)
-        print(message, '->', user)
         user.conn.send(message)
         if user.conn.recv(2).decode(FORMAT) == "!1":
-            print("!2")
+            pass
         else:
             print("error")
     except ConnectionError or OSError:
@@ -764,7 +761,6 @@ class Ability:
     def choose(self, match):
         try:
             book = target_choose(self.number_of_choose, self.owner, self.match)
-            print([list(map(lambda z: match.characters[z], book)), book])
             return [list(map(lambda z: match.characters[z], book)), book]
         except IndexError:
             send("!ERROR", self.owner)
