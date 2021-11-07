@@ -100,7 +100,7 @@ class Login_screen(QMainWindow, Ui_LoginWindow):
         else:
             global info
             info = pickle.loads(receive_bytes())
-            info.image = receive_bytes()
+            info.image = receive_image()
             show_main_widow(self)
 
     def login(self):
@@ -113,7 +113,7 @@ class Login_screen(QMainWindow, Ui_LoginWindow):
         else:
             global info
             info = pickle.loads(receive_bytes())
-            info.image = receive_bytes()
+            info.image = receive_image()
             show_main_widow(self)
 
 
@@ -303,7 +303,7 @@ class Main_screen(QMainWindow, Ui_MainWindow):
 
         send("!SAVE_POINT")
         send_bytes(pickle.dumps(info, 3))
-        send_bytes(base64.encodebytes(self.pixmap))
+        send_image(base64.encodebytes(self.pixmap))
         info.image = self.pixmap
 
     def current_ability(self):
@@ -384,7 +384,7 @@ class Waiting_screen(QMainWindow, Ui_Waiting):
             if count >= 1:
                 for j in range(count):
                     char = pickle.loads(receive_bytes())
-                    char.image = base64.decodebytes(receive_bytes())
+                    char.image = base64.decodebytes(receive_image())
                     book[i].append(char)
 
         for i in ["geo", "aero"]:

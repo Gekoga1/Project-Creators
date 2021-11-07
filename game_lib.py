@@ -118,7 +118,6 @@ def send_bytes(msg, user):
         send_length = str(msg_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
         user.conn.send(send_length)  # msg with length of next msg
-        time.sleep(0.1)
         user.conn.send(msg)
         if user.conn.recv(2).decode(FORMAT) == "!1":
             pass
@@ -130,6 +129,17 @@ def send_bytes(msg, user):
             raise SystemExit
         except OSError:
             raise SystemExit
+
+
+def send_image(image, user):
+    count = ceil(sys.getsizeof(image) / 512)
+    send(str(count), user)
+
+    for i in range(count):
+        if i == count - 1:
+            send_bytes(image[512 * i:], user)
+        else:
+            send_bytes(image[512 * i:512 * (i + 1)], user)
 
 
 def receive(user):
@@ -155,11 +165,12 @@ def receive(user):
 def receive_bytes(user):
     try:
         msg_length = user.conn.recv(HEADER).decode(FORMAT)
-        time.sleep(0.1)
         if msg_length:
             msg_length = int(msg_length)
             msg = user.conn.recv(msg_length)
-            time.sleep(0.1)
+            if msg == "!DISCONNECT":
+                user.conn.close()
+                raise SystemExit
             user.conn.send("!1".encode(FORMAT))
             return msg
     except ConnectionError or OSError:
@@ -168,6 +179,13 @@ def receive_bytes(user):
             raise SystemExit
         except OSError:
             raise SystemExit
+
+
+def receive_image(user):
+    book = b''
+    for i in range(int(receive(user))):
+        book += receive_bytes(user)
+    return book
 
 
 def target_action(user):
