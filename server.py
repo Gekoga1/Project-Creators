@@ -95,6 +95,7 @@ def recvall(n, sock):
             return None
         data.extend(packet)
     if data == b"!DISCONNECT":
+        print("!DISCONNECT")
         raise SystemExit
     return data
 
@@ -183,10 +184,6 @@ def login(user, data=False):
 
             return [y_id, result]
         except IndexError:
-
-            user.y_id = y_id
-            user.inventory["weapon"] = [1, 2, 3]
-            user.inventory["armor"] = [2, 3]
 
             return create_character(user)
 
@@ -640,7 +637,10 @@ class Weapon(Gear):
         super().__init__(name, rarity, match)
         self.base_damage = base_damage
         self.type_of = type_of
-        self.attack_effect = attack_effect
+        if attack_effect is not None:
+            self.attack_effect = attack_effect[0](*attack_effect[1:])
+        else:
+            self.attack_effect = None
 
     def set_up(self, match):
         super().set_up(match)
@@ -1177,11 +1177,24 @@ def cmd_control():
 
 if __name__ == '__main__':
     PORT = 5050
-    SERVER = input("Your IP.v4: ")
-    ADDR = (SERVER, PORT)
 
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(ADDR)
+    try:
+        SERVER = input("Input your Ip.v4 (or enter 1 for auto ip): ")
+
+        if SERVER == "1":
+            SERVER = socket.gethostbyname(socket.gethostname())
+
+        ADDR = (SERVER, PORT)
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(ADDR)
+    except ValueError:
+        SERVER = socket.gethostbyname(socket.gethostname())
+
+        ADDR = (SERVER, PORT)
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(ADDR)
 
     print("[STARTING] server is starting...")
     uid = list(map(lambda qz: qz[0], sqlite_request("""SELECT id FROM Account""", ())))
